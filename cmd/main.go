@@ -103,17 +103,17 @@ func (users *Users) getHandler(w http.ResponseWriter, r *http.Request) {
 
 	result := users.Db.Get(context.Background(), key)
 
+	if result.Err() == redis.Nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
 	if result.Err() != nil {
 		log.Printf(
 			"Error on getting key: %s",
 			result.Err().Error(),
 		)
 		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	if result.Err() == redis.Nil {
-		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
