@@ -1,47 +1,32 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log"
 	"math/rand"
 	"net/http"
-	"os"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"github.com/thek4n/paste.thek4n.name/cmd/storage"
 )
 
 type Users struct {
-	Db *redis.Client
+	db storage.KeysDB
 }
 
 func main() {
-	redisHost := os.Getenv("REDIS_HOST")
+	log.Println("Connecting to database...")
 
-	cfg := storage.Config{
-		Addr:        redisHost + ":6379",
-		Password:    "",
-		User:        "",
-		DB:          0,
-		MaxRetries:  5,
-		DialTimeout: 10 * time.Second,
-		Timeout:     5 * time.Second,
-	}
-
-	log.Printf("Connecting to redis via %s:6379 ...", redisHost)
-	db, err := storage.NewClient(context.Background(), cfg)
+	db, err := storage.InitStorageDB()
 	if err != nil {
-		log.Fatalf("failed to connect to redis server: %s\n", err.Error())
+		log.Fatalf("failed to connect to database server: %s\n", err.Error())
 		return
 	}
 
-	users := Users{Db: db}
+	users := Users{db: db}
 
 	mux := http.NewServeMux()
-
 	mux.HandleFunc("GET /{key}", users.getHandler)
 	mux.HandleFunc("POST /", users.saveHandler)
 
@@ -67,14 +52,14 @@ func (users *Users) saveHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uniqKey, err := generateUniqKey(users.Db)
+	uniqKey, err := generateUniqKey(users.db)
 	if err != nil {
 		log.Printf("Error on generating unique key: %s, suffered user %s", err.Error(), r.RemoteAddr)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	err = users.Db.Set(context.Background(), uniqKey, body, 0).Err()
+	err = users.db.Set(uniqKey, body)
 	if err != nil {
 		log.Printf(
 			"Error on setting key: %s",
@@ -106,9 +91,9 @@ func (users *Users) getHandler(w http.ResponseWriter, r *http.Request) {
 
 	key := r.PathValue("key")
 
-	result := users.Db.Get(context.Background(), key)
+	content, err := users.db.Get(key)
 
-	if result.Err() == redis.Nil {
+	if content == nil {
 		w.WriteHeader(http.StatusNotFound)
 
 		_, err := w.Write([]byte("404 Not Found"))
@@ -121,16 +106,6 @@ func (users *Users) getHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if result.Err() != nil {
-		log.Printf(
-			"Error on getting key: %s",
-			result.Err().Error(),
-		)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	content, err := result.Bytes()
 	if err != nil {
 		log.Printf(
 			"Error on getting key: %s",
@@ -157,17 +132,17 @@ func detectScheme(r *http.Request) string {
 	}
 }
 
-func generateUniqKey(db *redis.Client) (string, error) {
+func generateUniqKey(db storage.KeysDB) (string, error) {
 	length := 14
 
 	key := generateKey(length)
 
-	keysNumber, err := db.Exists(context.Background(), key).Uint64()
+	exists, err := db.Exists(key)
 	if err != nil {
 		return "", err
 	}
 
-	if keysNumber > 0 {
+	if exists {
 		return generateUniqKey(db)
 	}
 
