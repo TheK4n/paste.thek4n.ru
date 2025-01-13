@@ -68,7 +68,7 @@ func (users *Users) saveHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	log.Printf("Set body with key '%s'", uniqKey)
+	log.Printf("Set content with size %d on key '%s' from %s", len(body), uniqKey, r.RemoteAddr)
 
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -103,6 +103,7 @@ func (users *Users) getHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		log.Printf("Not found by key '%s' from %s", key, r.RemoteAddr)
 		return
 	}
 
@@ -122,6 +123,7 @@ func (users *Users) getHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	log.Printf("Get content by key '%s' from %s", key, r.RemoteAddr)
 }
 
 func detectScheme(r *http.Request) string {
