@@ -34,7 +34,8 @@ func main() {
 	log.Printf("Connecting to redis via %s:6379 ...", redisHost)
 	db, err := storage.NewClient(context.Background(), cfg)
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to connect to redis server: %s\n", err.Error())
+		return
 	}
 
 	users := Users{Db: db}
@@ -46,7 +47,7 @@ func main() {
 
 	log.Print("Server started on 0.0.0.0:80 ...")
 
-	panic(http.ListenAndServe("0.0.0.0:80", mux))
+	log.Fatal(http.ListenAndServe("0.0.0.0:80", mux))
 }
 
 func (users *Users) saveHandler(w http.ResponseWriter, r *http.Request) {

@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -31,7 +30,6 @@ func NewClient(ctx context.Context, cfg Config) (*redis.Client, error) {
 	})
 
 	if err := db.Ping(ctx).Err(); err != nil {
-		log.Fatalf("failed to connect to redis server: %s\n", err.Error())
 		return nil, err
 	}
 
