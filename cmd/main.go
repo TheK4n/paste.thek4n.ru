@@ -37,7 +37,8 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/", users.saveHandler)
+	mux.HandleFunc("GET /{key}", users.getHandler)
+	mux.HandleFunc("POST /", users.saveHandler)
 
 	log.Print("Server started...")
 
@@ -92,16 +93,44 @@ func (users *Users) saveHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// func (users *Users) getHandler(w http.ResponseWriter, r *http.Request) {
-// 	if r.Method != http.MethodGet {
-// 		w.WriteHeader(http.StatusMethodNotAllowed)
-// 		return
-// 	}
-//
-//
-// 	keysNumber, err := users.Db.Exists(context.Background(), key).Uint64()
-// }
-//
+func (users *Users) getHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	key := r.PathValue("key")
+
+	result := users.Db.Get(context.Background(), key)
+
+	if result.Err() != nil {
+		log.Printf(
+			"Error on getting key: %s",
+			result.Err().Error(),
+		)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if result.Err() == redis.Nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	content, err := result.Bytes()
+	if err != nil {
+		log.Printf(
+			"Error on getting key: %s",
+			err.Error(),
+		)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(content)
+}
+
 
 func detectScheme(r *http.Request) string {
 	if r.TLS == nil {
