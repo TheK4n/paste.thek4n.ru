@@ -1,0 +1,22 @@
+networks:
+    paste-network:
+
+services:
+  paste:
+    image: thek4n/paste
+    build: .
+    container_name: 'paste'
+    ports:
+      - 8080:80
+    networks:
+        - paste-network
+    environment:
+      REDIS_HOST: 'paste-redis'
+    restart: always
+
+  redis:
+    image: redis
+    container_name: 'paste-redis'
+    networks:
+        - paste-network
+    restart: always

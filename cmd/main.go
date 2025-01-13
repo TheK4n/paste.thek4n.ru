@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -18,8 +19,10 @@ type Users struct {
 }
 
 func main() {
+	redisHost := os.Getenv("REDIS_HOST")
+
 	cfg := storage.Config{
-		Addr:        "localhost:6379",
+		Addr:        redisHost + ":6379",
 		Password:    "",
 		User:        "",
 		DB:          0,
@@ -28,6 +31,7 @@ func main() {
 		Timeout:     5 * time.Second,
 	}
 
+	log.Printf("Connecting to redis via %s:6379 ...", redisHost)
 	db, err := storage.NewClient(context.Background(), cfg)
 	if err != nil {
 		panic(err)
@@ -40,9 +44,9 @@ func main() {
 	mux.HandleFunc("GET /{key}", users.getHandler)
 	mux.HandleFunc("POST /", users.saveHandler)
 
-	log.Print("Server started...")
+	log.Print("Server started on 0.0.0.0:80 ...")
 
-	http.ListenAndServe(":8080", mux)
+	panic(http.ListenAndServe("0.0.0.0:80", mux))
 }
 
 func (users *Users) saveHandler(w http.ResponseWriter, r *http.Request) {
@@ -105,6 +109,14 @@ func (users *Users) getHandler(w http.ResponseWriter, r *http.Request) {
 
 	if result.Err() == redis.Nil {
 		w.WriteHeader(http.StatusNotFound)
+
+		_, err := w.Write([]byte("404 Not Found"))
+		if err != nil {
+			log.Printf("Error on answer: %s", err.Error())
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
 		return
 	}
 
@@ -128,9 +140,13 @@ func (users *Users) getHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write(content)
+	_, err = w.Write(content)
+	if err != nil {
+		log.Printf("Error on answer: %s", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
-
 
 func detectScheme(r *http.Request) string {
 	if r.TLS == nil {
