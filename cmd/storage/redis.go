@@ -8,7 +8,6 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-
 type RedisDB struct {
 	client *redis.Client
 }
@@ -37,7 +36,6 @@ func (db *RedisDB) Get(key string) ([]byte, error) {
 	return result.Bytes()
 }
 
-
 func (db *RedisDB) Set(key string, body []byte) error {
 	return db.client.Set(context.Background(), key, body, 0).Err()
 }
@@ -58,7 +56,6 @@ func InitStorageDB() (*RedisDB, error) {
 	if err := client.Ping(context.Background()).Err(); err != nil {
 		return nil, err
 	}
-
 
 	return &RedisDB{client: client}, nil
 }

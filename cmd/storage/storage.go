@@ -1,6 +1,5 @@
 package storage
 
-
 type KeysDB interface {
 	Exists(string) (bool, error)
 	Get(string) ([]byte, error)

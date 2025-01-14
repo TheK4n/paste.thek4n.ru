@@ -27,12 +27,29 @@ func main() {
 	users := Users{db: db}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /ping", pingpong)
 	mux.HandleFunc("GET /{key}", users.getHandler)
 	mux.HandleFunc("POST /", users.saveHandler)
 
 	log.Print("Server started on 0.0.0.0:80 ...")
 
 	log.Fatal(http.ListenAndServe("0.0.0.0:80", mux))
+}
+
+func pingpong(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_, err := fmt.Fprint(w, "pong")
+
+	if err != nil {
+		log.Printf("Error on answer ping: %s", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
 
 func (users *Users) saveHandler(w http.ResponseWriter, r *http.Request) {

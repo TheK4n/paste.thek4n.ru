@@ -3,20 +3,26 @@ networks:
 
 services:
   paste:
-    image: thek4n/paste
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: 'thek4n/paste'
+    pull_policy: build
+    depends_on:
+      db:
+        condition: service_started
     container_name: 'paste'
     ports:
       - 8080:80
     networks:
       - paste-network
     environment:
-      REDIS_HOST: 'paste-redis'
+      REDIS_HOST: 'paste-db'
     restart: always
 
-  redis:
+  db:
     image: redis
-    container_name: 'paste-redis'
+    container_name: 'paste-db'
     networks:
-        - paste-network
+      - paste-network
     restart: always
