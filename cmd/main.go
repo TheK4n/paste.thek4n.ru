@@ -93,7 +93,7 @@ func (users *Users) saveHandler(w http.ResponseWriter, r *http.Request) {
 
 	scheme := detectScheme(r)
 
-	_, err = fmt.Fprintf(w, "%s%s/%s", scheme, r.Host, uniqKey)
+	_, err = fmt.Fprintf(w, "%s%s/%s/", scheme, r.Host, uniqKey)
 	if err != nil {
 		log.Printf("Error on answer: %s", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
