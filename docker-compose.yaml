@@ -6,19 +6,33 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+
     image: 'thek4n/paste'
+
     pull_policy: build
+
+    container_name: 'paste'
+
     depends_on:
       db:
         condition: service_started
-    container_name: 'paste'
+
     ports:
       - 8080:80
+
     networks:
       - paste-network
+
     environment:
       REDIS_HOST: 'paste-db'
+
     restart: always
+
+    healthcheck:
+      test: ["CMD", "curl", "-sS", "--fail", "127.0.0.1:80/ping/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   db:
     image: redis

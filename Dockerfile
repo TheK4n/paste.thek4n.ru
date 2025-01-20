@@ -19,8 +19,6 @@ RUN apk --no-cache add ca-certificates curl
 
 COPY --from=builder /build/paste-service /bin
 
-HEALTHCHECK --interval=5s --timeout=10s --retries=3 CMD curl -sS --fail 127.0.0.1:80/ping
-
 EXPOSE 80
 
 CMD ["paste-service"]

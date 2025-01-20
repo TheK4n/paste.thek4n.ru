@@ -26,9 +26,10 @@ func main() {
 
 	users := Users{db: db}
 
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /ping", pingpong)
-	mux.HandleFunc("GET /{key}", users.getHandler)
+	mux.HandleFunc("GET /ping/", pingpong)
+	mux.HandleFunc("GET /{key}/", users.getHandler)
 	mux.HandleFunc("POST /", users.saveHandler)
 
 	log.Print("Server started on 0.0.0.0:80 ...")
