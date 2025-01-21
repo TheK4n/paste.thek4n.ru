@@ -6,6 +6,8 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/thek4n/paste.thek4n.name/cmd/storage"
@@ -14,6 +16,8 @@ import (
 type Users struct {
 	db storage.KeysDB
 }
+
+const DEFAULT_PORT = 80
 
 func main() {
 	log.Println("Connecting to database...")
@@ -26,15 +30,26 @@ func main() {
 
 	users := Users{db: db}
 
-
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /ping/", pingpong)
 	mux.HandleFunc("GET /{key}/", users.getHandler)
 	mux.HandleFunc("POST /", users.saveHandler)
 
-	log.Print("Server started on 0.0.0.0:80 ...")
+	portEnv := os.Getenv("PASTE_PORT")
 
-	log.Fatal(http.ListenAndServe("0.0.0.0:80", mux))
+	port := DEFAULT_PORT
+
+	if portEnv != "" {
+		port, err = strconv.Atoi(portEnv)
+
+		if err != nil {
+			log.Fatalf("Invalid port: %s", portEnv)
+		}
+	}
+
+	log.Printf("Server started on 0.0.0.0:%d ...", port)
+
+	log.Fatal(http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", port), mux))
 }
 
 func pingpong(w http.ResponseWriter, r *http.Request) {
