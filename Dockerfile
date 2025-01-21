@@ -9,16 +9,14 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-w -s" -a -installsuffix cgo -o paste-service ./cmd
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-w -s" -a -installsuffix cgo -o /app/paste ./cmd/paste
 
 
 # runtime
-FROM alpine:latest
+FROM scratch
 
-RUN apk --no-cache add ca-certificates curl
-
-COPY --from=builder /build/paste-service /bin
+COPY --from=builder /app/paste /app/paste
 
 EXPOSE 80
 
-CMD ["paste-service"]
+CMD ["/app/paste"]
