@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/thek4n/paste.thek4n.name/cmd/storage"
+	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
 
 type Users struct {
