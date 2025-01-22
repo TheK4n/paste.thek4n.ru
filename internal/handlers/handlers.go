@@ -25,7 +25,7 @@ func (handlers *Handlers) Pingpong(w http.ResponseWriter, r *http.Request) {
 	_, err := fmt.Fprint(w, "pong")
 
 	if err != nil {
-		log.Printf("Error on answer ping: %s", err.Error())
+		log.Printf("Error on answer ping: %s, suffered user %s", err.Error(), r.RemoteAddr)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -40,8 +40,9 @@ func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Printf(
-			"Error on reading body: %s. Response to client with code %d",
+			"Error on reading body: %s. Response to client %s with code %d",
 			err.Error(),
+			r.RemoteAddr,
 			http.StatusInternalServerError,
 		)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -86,7 +87,7 @@ func (handlers *Handlers) Get(w http.ResponseWriter, r *http.Request) {
 
 		_, err := w.Write([]byte("404 Not Found"))
 		if err != nil {
-			log.Printf("Error on answer: %s", err.Error())
+			log.Printf("Error on answer: %s, suffered user %s", err.Error(), r.RemoteAddr)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -97,8 +98,9 @@ func (handlers *Handlers) Get(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		log.Printf(
-			"Error on getting key: %s",
+			"Error on getting key: %s, suffered user %s",
 			err.Error(),
+			r.RemoteAddr,
 		)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -107,7 +109,7 @@ func (handlers *Handlers) Get(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, err = w.Write(content)
 	if err != nil {
-		log.Printf("Error on answer: %s", err.Error())
+		log.Printf("Error on answer: %s, suffered user %s", err.Error(), r.RemoteAddr)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
