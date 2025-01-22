@@ -21,12 +21,11 @@ func (db *RedisDB) Exists(key string) (bool, error) {
 	return keysNumber > 0, nil
 }
 
-// Get key from redis db. It returns nil, nil if key not exists
 func (db *RedisDB) Get(key string) ([]byte, error) {
 	result := db.client.Get(context.Background(), key)
 
 	if result.Err() == redis.Nil {
-		return nil, nil
+		return nil, ErrKeyNotFound
 	}
 
 	if result.Err() != nil {
