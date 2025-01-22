@@ -3,9 +3,9 @@ FROM golang:1.23 AS builder
 
 WORKDIR /build
 
-COPY go.mod go.sum .
-
-RUN go mod download
+RUN --mount=type=bind,source=go.mod,target=go.mod \
+    --mount=type=bind,source=go.sum,target=go.sum \
+    go mod download
 
 COPY . .
 
