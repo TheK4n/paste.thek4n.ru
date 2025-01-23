@@ -12,8 +12,8 @@ type RedisDB struct {
 	client *redis.Client
 }
 
-func (db *RedisDB) Exists(key string) (bool, error) {
-	keysNumber, err := db.client.Exists(context.Background(), key).Uint64()
+func (db *RedisDB) Exists(ctx context.Context, key string) (bool, error) {
+	keysNumber, err := db.client.Exists(ctx, key).Uint64()
 	if err != nil {
 		return false, err
 	}
@@ -21,8 +21,8 @@ func (db *RedisDB) Exists(key string) (bool, error) {
 	return keysNumber > 0, nil
 }
 
-func (db *RedisDB) Get(key string) ([]byte, error) {
-	result := db.client.Get(context.Background(), key)
+func (db *RedisDB) Get(ctx context.Context, key string) ([]byte, error) {
+	result := db.client.Get(ctx, key)
 
 	if result.Err() == redis.Nil {
 		return nil, ErrKeyNotFound
@@ -35,8 +35,8 @@ func (db *RedisDB) Get(key string) ([]byte, error) {
 	return result.Bytes()
 }
 
-func (db *RedisDB) Set(key string, body []byte) error {
-	return db.client.Set(context.Background(), key, body, 0).Err()
+func (db *RedisDB) Set(ctx context.Context, key string, body []byte) error {
+	return db.client.Set(ctx, key, body, 0).Err()
 }
 
 func InitStorageDB() (*RedisDB, error) {

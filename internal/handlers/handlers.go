@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/thek4n/paste.thek4n.name/internal/keys"
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
@@ -49,7 +51,9 @@ func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key, err := keys.Cache(handlers.Db, body)
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	key, err := keys.Cache(ctx, handlers.Db, body)
 
 	if err != nil {
 		log.Printf("Error on setting key: %s, suffered user %s", err.Error(), r.RemoteAddr)
@@ -80,7 +84,9 @@ func (handlers *Handlers) Get(w http.ResponseWriter, r *http.Request) {
 
 	key := r.PathValue("key")
 
-	content, err := keys.Get(handlers.Db, key)
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	content, err := keys.Get(ctx, handlers.Db, key)
 
 	if err == storage.ErrKeyNotFound || errors.Unwrap(err) == storage.ErrKeyNotFound {
 		w.WriteHeader(http.StatusNotFound)
