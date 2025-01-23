@@ -9,12 +9,19 @@ import (
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
 
-func Get(ctx context.Context, db storage.KeysDB, key string) ([]byte, error) {
+func Get(db storage.KeysDB, key string, timeout time.Duration) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
 	return db.Get(ctx, key)
 }
 
-func Cache(ctx context.Context, db storage.KeysDB, text []byte) (string, error) {
+func Cache(db storage.KeysDB, text []byte, timeout time.Duration) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
 	uniqKey, err := waitUniqKey(ctx, db)
+
 	if err != nil {
 		return "", fmt.Errorf("Error on generating unique key: %w", err)
 	}

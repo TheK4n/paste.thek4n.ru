@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -51,9 +50,7 @@ func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-	defer cancel()
-	key, err := keys.Cache(ctx, handlers.Db, body)
+	key, err := keys.Cache(handlers.Db, body, 4 * time.Second)
 
 	if err != nil {
 		log.Printf("Error on setting key: %s, suffered user %s", err.Error(), r.RemoteAddr)
@@ -84,9 +81,7 @@ func (handlers *Handlers) Get(w http.ResponseWriter, r *http.Request) {
 
 	key := r.PathValue("key")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-	defer cancel()
-	content, err := keys.Get(ctx, handlers.Db, key)
+	content, err := keys.Get(handlers.Db, key, 4 * time.Second)
 
 	if err == storage.ErrKeyNotFound || errors.Unwrap(err) == storage.ErrKeyNotFound {
 		w.WriteHeader(http.StatusNotFound)
