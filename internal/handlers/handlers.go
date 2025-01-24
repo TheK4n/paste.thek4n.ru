@@ -50,7 +50,7 @@ func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key, err := keys.Cache(handlers.Db, body, 4 * time.Second)
+	key, err := keys.Cache(handlers.Db, body, 4*time.Second)
 
 	if err != nil {
 		log.Printf("Error on setting key: %s, suffered user %s", err.Error(), r.RemoteAddr)
@@ -81,7 +81,7 @@ func (handlers *Handlers) Get(w http.ResponseWriter, r *http.Request) {
 
 	key := r.PathValue("key")
 
-	content, err := keys.Get(handlers.Db, key, 4 * time.Second)
+	content, err := keys.Get(handlers.Db, key, 4*time.Second)
 
 	if err == storage.ErrKeyNotFound || errors.Unwrap(err) == storage.ErrKeyNotFound {
 		w.WriteHeader(http.StatusNotFound)
