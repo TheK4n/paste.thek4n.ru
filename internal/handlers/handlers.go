@@ -38,11 +38,11 @@ func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
+	body, readBodyErr := io.ReadAll(r.Body)
+	if readBodyErr != nil {
 		log.Printf(
 			"Error on reading body: %s. Response to client %s with code %d",
-			err.Error(),
+			readBodyErr.Error(),
 			r.RemoteAddr,
 			http.StatusInternalServerError,
 		)
@@ -50,10 +50,10 @@ func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key, err := keys.Cache(handlers.Db, body, 4*time.Second)
+	key, cacheErr := keys.Cache(handlers.Db, body, 4*time.Second)
 
-	if err != nil {
-		log.Printf("Error on setting key: %s, suffered user %s", err.Error(), r.RemoteAddr)
+	if cacheErr != nil {
+		log.Printf("Error on setting key: %s, suffered user %s", cacheErr.Error(), r.RemoteAddr)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -65,9 +65,9 @@ func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 
 	scheme := detectScheme(r)
 
-	_, err = fmt.Fprintf(w, "%s%s/%s/", scheme, r.Host, key)
-	if err != nil {
-		log.Printf("Error on answer: %s", err.Error())
+	_, answerErr := fmt.Fprintf(w, "%s%s/%s/", scheme, r.Host, key)
+	if answerErr != nil {
+		log.Printf("Error on answer: %s", answerErr.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -81,36 +81,36 @@ func (handlers *Handlers) Get(w http.ResponseWriter, r *http.Request) {
 
 	key := r.PathValue("key")
 
-	content, err := keys.Get(handlers.Db, key, 4*time.Second)
+	content, getKeyErr := keys.Get(handlers.Db, key, 4*time.Second)
 
-	if err == storage.ErrKeyNotFound || errors.Unwrap(err) == storage.ErrKeyNotFound {
-		w.WriteHeader(http.StatusNotFound)
+	if getKeyErr != nil {
+		if getKeyErr == storage.ErrKeyNotFound || errors.Unwrap(getKeyErr) == storage.ErrKeyNotFound {
+			w.WriteHeader(http.StatusNotFound)
 
-		_, err := w.Write([]byte("404 Not Found"))
-		if err != nil {
-			log.Printf("Error on answer: %s, suffered user %s", err.Error(), r.RemoteAddr)
+			_, writeErr := w.Write([]byte("404 Not Found"))
+			if writeErr != nil {
+				log.Printf("Error on answer: %s, suffered user %s", writeErr.Error(), r.RemoteAddr)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			log.Printf("Not found by key '%s' from %s", key, r.RemoteAddr)
+			return
+		} else {
+			log.Printf(
+				"Error on getting key: %s, suffered user %s",
+				getKeyErr.Error(),
+				r.RemoteAddr,
+			)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-
-		log.Printf("Not found by key '%s' from %s", key, r.RemoteAddr)
-		return
-	}
-
-	if err != nil {
-		log.Printf(
-			"Error on getting key: %s, suffered user %s",
-			err.Error(),
-			r.RemoteAddr,
-		)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	_, err = w.Write(content)
-	if err != nil {
-		log.Printf("Error on answer: %s, suffered user %s", err.Error(), r.RemoteAddr)
+	_, writeErr := w.Write(content)
+	if writeErr != nil {
+		log.Printf("Error on answer: %s, suffered user %s", writeErr.Error(), r.RemoteAddr)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
