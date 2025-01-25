@@ -56,9 +56,10 @@ func generateUniqKey(ctx context.Context, db storage.KeysDB) (string, error) {
 	length := 14
 
 	key := generateKey(length)
-	exists, _ := db.Exists(ctx, key)
-
-	var err error
+	exists, err := db.Exists(ctx, key)
+	if err != nil {
+		return "", err
+	}
 
 	for exists {
 		select {
