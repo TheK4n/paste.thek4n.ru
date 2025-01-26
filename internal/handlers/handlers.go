@@ -12,6 +12,8 @@ import (
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
 
+const ONE_MEBIBYTE = 1048576
+
 type Handlers struct {
 	Db storage.KeysDB
 }
@@ -38,8 +40,15 @@ func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, readBodyErr := io.ReadAll(r.Body)
-	if readBodyErr != nil {
+	if r.ContentLength > ONE_MEBIBYTE {
+		w.WriteHeader(http.StatusRequestEntityTooLarge)
+		return
+	}
+	body := make([]byte, r.ContentLength)
+
+	_, readBodyErr := r.Body.Read(body)
+
+	if readBodyErr != io.EOF {
 		log.Printf(
 			"Error on reading body: %s. Response to client %s with code %d",
 			readBodyErr.Error(),
