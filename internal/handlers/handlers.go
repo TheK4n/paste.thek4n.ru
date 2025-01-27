@@ -13,6 +13,9 @@ import (
 )
 
 const ONE_MEBIBYTE = 1048576
+const SECONDS_IN_MONTH = time.Second * 60 * 60 * 24 * 30
+const DEFAULT_TTL_SECONDS = SECONDS_IN_MONTH
+const MIN_TTL = time.Second * 60
 
 type Handlers struct {
 	Db storage.KeysDB
@@ -40,6 +43,13 @@ func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ttl, errGetTTL := getTTL(r)
+
+	if errGetTTL != nil {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		return
+	}
+
 	if r.ContentLength > ONE_MEBIBYTE {
 		w.WriteHeader(http.StatusRequestEntityTooLarge)
 		return
@@ -59,7 +69,12 @@ func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key, cacheErr := keys.Cache(handlers.Db, body, 4*time.Second)
+	key, cacheErr := keys.Cache(
+		handlers.Db,
+		4*time.Second,
+		body,
+		ttl,
+	)
 
 	if cacheErr != nil {
 		log.Printf("Error on setting key: %s, suffered user %s", cacheErr.Error(), r.RemoteAddr)
@@ -67,7 +82,7 @@ func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Set content with size %d on key '%s' from %s", len(body), key, r.RemoteAddr)
+	log.Printf("Set content with size %d on key '%s' with ttl %s from %s", len(body), key, ttl, r.RemoteAddr)
 
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -124,6 +139,26 @@ func (handlers *Handlers) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("Get content by key '%s' from %s", key, r.RemoteAddr)
+}
+
+func getTTL(r *http.Request) (time.Duration, error) {
+	ttlQuery := r.URL.Query().Get("ttl")
+
+	if ttlQuery == "" {
+		return DEFAULT_TTL_SECONDS, nil
+	}
+
+	ttl, err := time.ParseDuration(ttlQuery)
+
+	if err != nil {
+		return 0, fmt.Errorf("Error while parse TTL: %w", err)
+	}
+
+	if ttl < MIN_TTL {
+		return 0, fmt.Errorf("TTL can`t be less then %d seconds", MIN_TTL)
+	}
+
+	return ttl, nil
 }
 
 func detectScheme(r *http.Request) string {

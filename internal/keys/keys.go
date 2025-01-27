@@ -16,7 +16,7 @@ func Get(db storage.KeysDB, key string, timeout time.Duration) ([]byte, error) {
 	return db.Get(ctx, key)
 }
 
-func Cache(db storage.KeysDB, text []byte, timeout time.Duration) (string, error) {
+func Cache(db storage.KeysDB, timeout time.Duration, text []byte, ttl time.Duration) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -26,7 +26,7 @@ func Cache(db storage.KeysDB, text []byte, timeout time.Duration) (string, error
 		return "", fmt.Errorf("Error on generating unique key: %w", err)
 	}
 
-	err = db.Set(ctx, uniqKey, text)
+	err = db.Set(ctx, uniqKey, text, ttl)
 
 	if err != nil {
 		return "", fmt.Errorf("Error on setting key '%s' in db: %w", uniqKey, err)

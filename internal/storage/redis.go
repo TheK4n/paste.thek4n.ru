@@ -35,8 +35,8 @@ func (db *RedisDB) Get(ctx context.Context, key string) ([]byte, error) {
 	return result.Bytes()
 }
 
-func (db *RedisDB) Set(ctx context.Context, key string, body []byte) error {
-	return db.client.Set(ctx, key, body, 0).Err()
+func (db *RedisDB) Set(ctx context.Context, key string, body []byte, ttl time.Duration) error {
+	return db.client.Set(ctx, key, body, ttl).Err()
 }
 
 func InitStorageDB() (*RedisDB, error) {
