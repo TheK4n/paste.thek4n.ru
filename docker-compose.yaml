@@ -28,12 +28,6 @@ services:
 
     restart: always
 
-    healthcheck:
-      test: ["CMD", "curl", "-sS", "--fail", "127.0.0.1:80/ping/"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   db:
     image: redis
     container_name: 'paste-db'
