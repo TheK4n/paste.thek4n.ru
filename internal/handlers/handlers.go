@@ -54,9 +54,8 @@ func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusRequestEntityTooLarge)
 		return
 	}
-	body := make([]byte, r.ContentLength)
 
-	_, readBodyErr := r.Body.Read(body)
+	body, readBodyErr := io.ReadAll(r.Body)
 
 	if readBodyErr != io.EOF && readBodyErr != nil {
 		log.Printf(
