@@ -1,2 +1,5 @@
 paste
 !cmd/paste/
+
+ping
+!cmd/ping/
