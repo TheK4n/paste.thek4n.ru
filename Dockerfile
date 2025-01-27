@@ -12,7 +12,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # runtime
 FROM scratch
 
-COPY --from=builder /app/paste /app/paste
+COPY --from=builder /app/ /app
 
 EXPOSE 80
 
