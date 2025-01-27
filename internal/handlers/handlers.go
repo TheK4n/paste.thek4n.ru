@@ -48,7 +48,7 @@ func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 
 	_, readBodyErr := r.Body.Read(body)
 
-	if readBodyErr != io.EOF {
+	if readBodyErr != io.EOF && readBodyErr != nil {
 		log.Printf(
 			"Error on reading body: %s. Response to client %s with code %d",
 			readBodyErr.Error(),
