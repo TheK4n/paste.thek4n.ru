@@ -6,8 +6,7 @@ WORKDIR /build
 COPY . .
 
 RUN --mount=type=cache,target=/go/pkg/mod \
-    CGO_ENABLED=0 GOOS=linux go build -ldflags "-w -s" -a -installsuffix cgo -o /app/paste ./cmd/paste && \
-    CGO_ENABLED=0 GOOS=linux go build -ldflags "-w -s" -a -installsuffix cgo -o /app/ping ./cmd/ping
+    CGO_ENABLED=0 GOOS=linux go build -ldflags "-w -s" -a -installsuffix cgo -o /app/ ./...
 
 
 # upx

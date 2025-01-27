@@ -1,10 +1,10 @@
 package main
 
 import (
-	"os"
-	"io"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 )
 
 func main() {
@@ -27,7 +27,7 @@ func main() {
 }
 
 func getArgument(n int) string {
-	if len(os.Args) < n + 1 {
+	if len(os.Args) < n+1 {
 		return "http://localhost:80/ping"
 	}
 
