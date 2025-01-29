@@ -13,9 +13,13 @@ import (
 )
 
 const ONE_MEBIBYTE = 1048576
+
 const SECONDS_IN_MONTH = time.Second * 60 * 60 * 24 * 30
 const DEFAULT_TTL_SECONDS = SECONDS_IN_MONTH
 const MIN_TTL = time.Second * 60
+
+const SECONDS_IN_YEAR = time.Second * 60 * 60 * 24 * 30 * 12
+const MAX_TTL = SECONDS_IN_YEAR
 
 type Handlers struct {
 	Db storage.KeysDB
@@ -46,6 +50,12 @@ func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 	ttl, errGetTTL := getTTL(r)
 
 	if errGetTTL != nil {
+		log.Printf(
+			"Error on parsing ttl: %s. Response to client %s with code %d",
+			errGetTTL.Error(),
+			r.RemoteAddr,
+			http.StatusInternalServerError,
+		)
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		return
 	}
@@ -150,11 +160,15 @@ func getTTL(r *http.Request) (time.Duration, error) {
 	ttl, err := time.ParseDuration(ttlQuery)
 
 	if err != nil {
-		return 0, fmt.Errorf("Error while parse TTL: %w", err)
+		return 0, err
 	}
 
 	if ttl < MIN_TTL {
-		return 0, fmt.Errorf("TTL can`t be less then %d seconds", MIN_TTL)
+		return 0, fmt.Errorf("TTL can`t be less then %s", MIN_TTL)
+	}
+
+	if ttl > MAX_TTL {
+		return 0, fmt.Errorf("TTL can`t be more then %s", MAX_TTL)
 	}
 
 	return ttl, nil
