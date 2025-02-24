@@ -26,11 +26,6 @@ type Handlers struct {
 }
 
 func (handlers *Handlers) Pingpong(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
 	w.WriteHeader(http.StatusOK)
 	_, err := fmt.Fprint(w, "pong")
 
@@ -42,11 +37,6 @@ func (handlers *Handlers) Pingpong(w http.ResponseWriter, r *http.Request) {
 }
 
 func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
 	ttl, errGetTTL := getTTL(r)
 
 	if errGetTTL != nil {
@@ -107,11 +97,6 @@ func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 }
 
 func (handlers *Handlers) Get(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
 	key := r.PathValue("key")
 
 	content, getKeyErr := keys.Get(handlers.Db, key, 4*time.Second)
