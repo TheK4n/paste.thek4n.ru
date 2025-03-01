@@ -2,7 +2,7 @@ package storage
 
 import (
 	"context"
-	"os"
+	"fmt"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -39,11 +39,9 @@ func (db *RedisDB) Set(ctx context.Context, key string, body []byte, ttl time.Du
 	return db.client.Set(ctx, key, body, ttl).Err()
 }
 
-func InitStorageDB() (*RedisDB, error) {
-	redisHost := os.Getenv("REDIS_HOST")
-
+func InitStorageDB(dbHost string, dbPort int) (*RedisDB, error) {
 	client := redis.NewClient(&redis.Options{
-		Addr:         redisHost + ":6379",
+		Addr:         fmt.Sprintf("%s:%d", dbHost, dbPort),
 		Password:     "",
 		Username:     "",
 		DB:           0,

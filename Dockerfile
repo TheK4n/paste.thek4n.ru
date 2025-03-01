@@ -28,4 +28,4 @@ EXPOSE 80
 
 HEALTHCHECK --interval=5s --timeout=10s --retries=3 CMD ["/app/ping", "http://localhost:80/ping/"]
 
-CMD ["/app/paste"]
+CMD ["/app/paste", "--host", "localhost", "--port", "80", "--dbport", "6379", "--ping"]
