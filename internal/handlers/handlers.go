@@ -21,22 +21,28 @@ const MIN_TTL = time.Second * 60
 const SECONDS_IN_YEAR = time.Second * 60 * 60 * 24 * 30 * 12
 const MAX_TTL = SECONDS_IN_YEAR
 
-type Handlers struct {
-	Db storage.KeysDB
+type Application struct {
+	Version string
+	Db      storage.KeysDB
 }
 
-func (handlers *Handlers) Pingpong(w http.ResponseWriter, r *http.Request) {
+func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	_, err := fmt.Fprint(w, "pong")
+
+	w.Header().Set("Content-Type", "application/json")
+	answer := `{"status": "available", "version": %q}`
+	answer = fmt.Sprintf(answer, app.Version)
+
+	_, err := w.Write([]byte(answer))
 
 	if err != nil {
-		log.Printf("Error on answer ping: %s, suffered user %s", err.Error(), r.RemoteAddr)
+		log.Printf("Error on answer healthcheck: %s, suffered user %s", err.Error(), r.RemoteAddr)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 }
 
-func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
+func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	ttl, errGetTTL := getTTL(r)
 
 	if errGetTTL != nil {
@@ -69,7 +75,7 @@ func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 	}
 
 	key, cacheErr := keys.Cache(
-		handlers.Db,
+		app.Db,
 		4*time.Second,
 		body,
 		ttl,
@@ -96,10 +102,10 @@ func (handlers *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (handlers *Handlers) Get(w http.ResponseWriter, r *http.Request) {
+func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 
-	content, getKeyErr := keys.Get(handlers.Db, key, 4*time.Second)
+	content, getKeyErr := keys.Get(app.Db, key, 4*time.Second)
 
 	if getKeyErr != nil {
 		if getKeyErr == storage.ErrKeyNotFound || errors.Unwrap(getKeyErr) == storage.ErrKeyNotFound {

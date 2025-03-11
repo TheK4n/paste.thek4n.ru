@@ -12,10 +12,12 @@ import (
 	flags "github.com/jessevdk/go-flags"
 )
 
+const VERSION = "1.0.0"
+
 type Options struct {
 	Port   int    `short:"p" long:"port" description:"Port to listen"`
 	Host   string `long:"host" description:"Host to listen"`
-	Ping   bool   `long:"ping" description:"Enable ping handler"`
+	Health bool   `long:"health" description:"Enable health handler on /health/ URL"`
 	DBPort int    `long:"dbport" description:"Database port"`
 }
 
@@ -35,13 +37,13 @@ func main() {
 		return
 	}
 
-	handlers := handlers.Handlers{Db: db}
+	handlers := handlers.Application{Version: VERSION, Db: db}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{key}/", handlers.Get)
 	mux.HandleFunc("POST /", handlers.Cache)
-	if opts.Ping {
-		mux.HandleFunc("GET /ping/", handlers.Pingpong)
+	if opts.Health {
+		mux.HandleFunc("GET /health/", handlers.Healthcheck)
 	}
 
 	hostport := fmt.Sprintf("%s:%d", opts.Host, opts.Port)

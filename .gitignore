@@ -1,5 +1,2 @@
-paste
-!cmd/paste/
-
-ping
-!cmd/ping/
+bin/*
+!bin/.gitkeep
