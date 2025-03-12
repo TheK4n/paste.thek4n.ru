@@ -15,23 +15,24 @@ import (
 const VERSION = "1.0.0"
 
 type Options struct {
-	Port   int    `short:"p" long:"port" description:"Port to listen"`
-	Host   string `long:"host" description:"Host to listen"`
+	Port   int    `short:"p" long:"port" default:"80" description:"Port to listen"`
+	Host   string `long:"host" default:"localhost" description:"Host to listen"`
 	Health bool   `long:"health" description:"Enable health handler on /health/ URL"`
-	DBPort int    `long:"dbport" description:"Database port"`
+	DBPort int    `long:"dbport" default:"6379" description:"Database port"`
+	DBHost string `long:"dbhost" default:"localhost" description:"Database host"`
 }
 
 func main() {
 	var opts Options
 	_, err := flags.Parse(&opts)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Parse params error: %s\n", err)
 		os.Exit(2)
 	}
 
 	log.Println("Connecting to database...")
 
-	redisHost := os.Getenv("REDIS_HOST")
-	db, err := storage.InitStorageDB(redisHost, opts.DBPort)
+	db, err := storage.InitStorageDB(opts.DBHost, opts.DBPort)
 	if err != nil {
 		log.Fatalf("failed to connect to database server: %s\n", err.Error())
 		return

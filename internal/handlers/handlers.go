@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -21,19 +23,43 @@ const MIN_TTL = time.Second * 60
 const SECONDS_IN_YEAR = time.Second * 60 * 60 * 24 * 30 * 12
 const MAX_TTL = SECONDS_IN_YEAR
 
+const HEALTHCHECK_TIMEOUT = time.Second * 3
+
 type Application struct {
 	Version string
 	Db      storage.KeysDB
 }
 
+type HealthcheckResponse struct {
+	Version      string `json:"version"`
+	Availability bool   `json:"availability"`
+	Msg          string `json:"msg"`
+}
+
+// Checks database availability and returns version
 func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
+	availability := true
+	msg := "ok"
+
+	ctx, cancel := context.WithTimeout(context.Background(), HEALTHCHECK_TIMEOUT)
+	defer cancel()
+
+	if !app.Db.Ping(ctx) {
+		availability = false
+		msg = "Error connection to database"
+	}
+
+	resp := &HealthcheckResponse{
+		Version: app.Version,
+		Availability: availability,
+		Msg: msg,
+	}
+
+	answer, err := json.Marshal(resp)
+
 	w.WriteHeader(http.StatusOK)
-
 	w.Header().Set("Content-Type", "application/json")
-	answer := `{"status": "available", "version": %q}`
-	answer = fmt.Sprintf(answer, app.Version)
-
-	_, err := w.Write([]byte(answer))
+	_, err = w.Write([]byte(answer))
 
 	if err != nil {
 		log.Printf("Error on answer healthcheck: %s, suffered user %s", err.Error(), r.RemoteAddr)

@@ -15,4 +15,5 @@ type KeysDB interface {
 	Get(context.Context, string) ([]byte, error)
 	Set(context.Context, string, []byte, time.Duration) error
 	Exists(context.Context, string) (bool, error)
+	Ping(context.Context) bool
 }
