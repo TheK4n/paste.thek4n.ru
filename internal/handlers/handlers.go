@@ -50,9 +50,9 @@ func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := &HealthcheckResponse{
-		Version: app.Version,
+		Version:      app.Version,
 		Availability: availability,
-		Msg: msg,
+		Msg:          msg,
 	}
 
 	answer, err := json.Marshal(resp)

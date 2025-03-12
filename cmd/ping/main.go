@@ -10,12 +10,10 @@ import (
 )
 
 type Options struct {
-	Simple     bool `long:"simple" default:"false" description:"Just check connection"`
-	Http200OK  bool `long:"200" default:"false" description:"Check is status 200"`
-	Complex    bool `long:"complex" default:"true" description:"Check server json response availability==true"`
-	URL		   string `short:"u" long:"url" required:"true" description:"Target url"`
-}
+	Method string `long:"method" choice:"simple" choice:"200" choice:"json" default:"simple"`
 
+	URL string `short:"u" long:"url" required:"true" description:"Target url"`
+}
 
 type HealthcheckResponse struct {
 	Version      string `json:"version"`
@@ -31,20 +29,26 @@ func main() {
 		os.Exit(2)
 	}
 
-
-
-	if resp.StatusCode != http.StatusOK {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	switch opts.Method {
+	case "simple":
+		simpleHealthcheck(opts.URL)
+	case "200":
+		simpleHealthcheck200(opts.URL)
+	case "json":
+		jsonHealthcheck(opts.URL)
 	}
 
-	defer resp.Body.Close()
+	os.Exit(0)
+}
+
+func jsonHealthcheck(url string) *http.Response {
+	resp := simpleHealthcheck200(url)
 
 	healthCheckResp := HealthcheckResponse{}
-	err = json.NewDecoder(resp.Body).Decode(&healthCheckResp)
+	err := json.NewDecoder(resp.Body).Decode(&healthCheckResp)
 
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, "Error reading server answer: ", err)
 		os.Exit(1)
 	}
 
@@ -53,30 +57,34 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("Ok")
-	os.Exit(0)
+	return resp
 }
 
+func simpleHealthcheck200(url string) *http.Response {
+	resp := simpleHealthcheck(url)
 
-func simple(url string) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	req.Header.Add("Accept", "application/json")
+	if resp.StatusCode != http.StatusOK {
+		fmt.Fprintln(os.Stderr, "Status:", resp.StatusCode)
+		os.Exit(1)
+	}
 
-	resp, err := http.DefaultClient.Do(req)
+	return resp
+}
+
+func simpleHealthcheck(url string) *http.Response {
+	resp, err := getRequest(url)
 
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	fmt.Println("Ok")
-	os.Exit(0)
+	return resp
 }
 
-func simple200() {
+func getRequest(url string) (*http.Response, error) {
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	req.Header.Add("Accept", "application/json")
 
-}
-
-func complex_() {
-
+	return http.DefaultClient.Do(req)
 }

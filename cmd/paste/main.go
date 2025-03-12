@@ -32,6 +32,11 @@ func main() {
 
 	log.Println("Connecting to database...")
 
+	redisHost := os.Getenv("REDIS_HOST")
+	if redisHost != "" {
+		opts.DBHost = redisHost
+	}
+
 	db, err := storage.InitStorageDB(opts.DBHost, opts.DBPort)
 	if err != nil {
 		log.Fatalf("failed to connect to database server: %s\n", err.Error())
