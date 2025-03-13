@@ -2,4 +2,6 @@
 .gitignore
 .dockerignore
 Dockerfile
-paste
+bin/
+README.md
+docker-compose.yaml
