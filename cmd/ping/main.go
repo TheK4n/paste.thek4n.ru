@@ -11,8 +11,6 @@ import (
 
 type Options struct {
 	Method string `long:"method" choice:"simple" choice:"200" choice:"json" default:"simple"`
-
-	URL string `short:"u" long:"url" required:"true" description:"Target url"`
 }
 
 type HealthcheckResponse struct {
@@ -23,19 +21,24 @@ type HealthcheckResponse struct {
 
 func main() {
 	var opts Options
-	_, err := flags.Parse(&opts)
+	args, err := flags.Parse(&opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Parse params error: %s\n", err)
 		os.Exit(2)
 	}
 
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "Parse params error: URL argument not provided")
+		os.Exit(2)
+	}
+
 	switch opts.Method {
 	case "simple":
-		simpleHealthcheck(opts.URL)
+		simpleHealthcheck(args[0])
 	case "200":
-		simpleHealthcheck200(opts.URL)
+		simpleHealthcheck200(args[0])
 	case "json":
-		jsonHealthcheck(opts.URL)
+		jsonHealthcheck(args[0])
 	}
 
 	os.Exit(0)
