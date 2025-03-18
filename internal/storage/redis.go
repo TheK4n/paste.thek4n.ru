@@ -12,6 +12,7 @@ import (
 type Record struct {
 	Body       []byte `redis:"body"`
 	Disposable bool   `redis:"disposable"`
+	Countdown  int    `redis:"countdown"`
 }
 
 type RedisDB struct {
@@ -46,9 +47,16 @@ func (db *RedisDB) Get(ctx context.Context, key string) ([]byte, error) {
 	}
 
 	if record.Disposable {
-		delErr := db.client.Del(ctx, key).Err()
-		if delErr != nil {
-			panic("Fatal error when deletion disposable url: " + delErr.Error())
+		countdown, countdownErr := db.client.HIncrBy(ctx, key, "countdown", -1).Result()
+		if countdownErr != nil {
+			panic("Fatal error when countdown: " + countdownErr.Error())
+		}
+
+		if countdown < 1 {
+			delErr := db.client.Del(ctx, key).Err()
+			if delErr != nil {
+				panic("Fatal error when deletion disposable url: " + delErr.Error())
+			}
 		}
 	}
 
@@ -56,17 +64,18 @@ func (db *RedisDB) Get(ctx context.Context, key string) ([]byte, error) {
 }
 
 func (db *RedisDB) Set(ctx context.Context, key string, body []byte, ttl time.Duration) error {
-	return db.set(ctx, key, body, ttl, false)
+	return db.set(ctx, key, body, ttl, false, 0)
 }
 
-func (db *RedisDB) SetDisposable(ctx context.Context, key string, body []byte, ttl time.Duration) error {
-	return db.set(ctx, key, body, ttl, true)
+func (db *RedisDB) SetDisposable(ctx context.Context, key string, body []byte, ttl time.Duration, countdown int) error {
+	return db.set(ctx, key, body, ttl, true, countdown)
 }
 
-func (db *RedisDB) set(ctx context.Context, key string, body []byte, ttl time.Duration, disposable bool) error {
+func (db *RedisDB) set(ctx context.Context, key string, body []byte, ttl time.Duration, disposable bool, countdown int) error {
 	record := Record{
 		Body:       body,
 		Disposable: disposable,
+		Countdown:  countdown,
 	}
 
 	err := db.client.HSet(ctx, key, record).Err()

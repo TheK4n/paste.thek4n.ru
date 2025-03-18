@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/thek4n/paste.thek4n.name/internal/keys"
@@ -114,19 +115,20 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	var key string
 	var cacheErr error
 
-	if disposable {
-		key, cacheErr = keys.CacheDisposable(
+	if disposable == 0 {
+		key, cacheErr = keys.Cache(
 			app.Db,
 			4*time.Second,
 			body,
 			ttl,
 		)
 	} else {
-		key, cacheErr = keys.Cache(
+		key, cacheErr = keys.CacheDisposable(
 			app.Db,
 			4*time.Second,
 			body,
 			ttl,
+			disposable,
 		)
 	}
 
@@ -214,22 +216,28 @@ func getTTL(r *http.Request) (time.Duration, error) {
 	return ttl, nil
 }
 
-func getDisposable(r *http.Request) (bool, error) {
+func getDisposable(r *http.Request) (int, error) {
 	disposableQuery := r.URL.Query().Get("disposable")
 
 	if disposableQuery == "" {
-		return false, nil
+		return 0, nil
 	}
 
-	if disposableQuery == "true" {
-		return true, nil
+	disposable, err := strconv.Atoi(disposableQuery)
+
+	if err != nil {
+		return 0, err
 	}
 
-	if disposableQuery == "false" {
-		return false, nil
+	if disposable < 0 {
+		return 0, fmt.Errorf("Disposable argument can`t be less then zero")
 	}
 
-	return false, fmt.Errorf("Disposable argumant can be only 'true' or 'false'")
+	if disposable > 255 {
+		return 0, fmt.Errorf("Disposable argument can`t be more then 255")
+	}
+
+	return disposable, nil
 }
 
 func detectScheme(r *http.Request) string {

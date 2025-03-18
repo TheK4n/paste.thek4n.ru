@@ -17,14 +17,14 @@ func Get(db storage.KeysDB, key string, timeout time.Duration) ([]byte, error) {
 }
 
 func Cache(db storage.KeysDB, timeout time.Duration, text []byte, ttl time.Duration) (string, error) {
-	return cache(db, timeout, text, ttl, false)
+	return cache(db, timeout, text, ttl, false, 0)
 }
 
-func CacheDisposable(db storage.KeysDB, timeout time.Duration, text []byte, ttl time.Duration) (string, error) {
-	return cache(db, timeout, text, ttl, true)
+func CacheDisposable(db storage.KeysDB, timeout time.Duration, text []byte, ttl time.Duration, coundown int) (string, error) {
+	return cache(db, timeout, text, ttl, true, coundown)
 }
 
-func cache(db storage.KeysDB, timeout time.Duration, text []byte, ttl time.Duration, disposable bool) (string, error) {
+func cache(db storage.KeysDB, timeout time.Duration, text []byte, ttl time.Duration, disposable bool, disposableCountdown int) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -35,7 +35,7 @@ func cache(db storage.KeysDB, timeout time.Duration, text []byte, ttl time.Durat
 	}
 
 	if disposable {
-		err = db.SetDisposable(ctx, uniqKey, text, ttl)
+		err = db.SetDisposable(ctx, uniqKey, text, ttl, disposableCountdown)
 	} else {
 		err = db.Set(ctx, uniqKey, text, ttl)
 	}
