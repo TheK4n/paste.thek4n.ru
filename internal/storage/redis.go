@@ -9,6 +9,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+type Record struct {
+	Body       []byte `redis:"body"`
+	Disposable bool   `redis:"disposable"`
+}
+
 type RedisDB struct {
 	client *redis.Client
 }
@@ -23,21 +28,53 @@ func (db *RedisDB) Exists(ctx context.Context, key string) (bool, error) {
 }
 
 func (db *RedisDB) Get(ctx context.Context, key string) ([]byte, error) {
-	result := db.client.Get(ctx, key)
+	exists, err := db.Exists(ctx, key)
 
-	if result.Err() == redis.Nil {
+	if err != nil {
+		return nil, err
+	}
+
+	if !exists {
 		return nil, ErrKeyNotFound
 	}
 
-	if result.Err() != nil {
-		return nil, result.Err()
+	var record Record
+	err = db.client.HGetAll(ctx, key).Scan(&record)
+
+	if err != nil {
+		return nil, err
 	}
 
-	return result.Bytes()
+	if record.Disposable {
+		delErr := db.client.Del(ctx, key).Err()
+		if delErr != nil {
+			panic("Fatal error when deletion disposable url: " + delErr.Error())
+		}
+	}
+
+	return record.Body, nil
 }
 
 func (db *RedisDB) Set(ctx context.Context, key string, body []byte, ttl time.Duration) error {
-	return db.client.Set(ctx, key, body, ttl).Err()
+	return db.set(ctx, key, body, ttl, false)
+}
+
+func (db *RedisDB) SetDisposable(ctx context.Context, key string, body []byte, ttl time.Duration) error {
+	return db.set(ctx, key, body, ttl, true)
+}
+
+func (db *RedisDB) set(ctx context.Context, key string, body []byte, ttl time.Duration, disposable bool) error {
+	record := Record{
+		Body:       body,
+		Disposable: disposable,
+	}
+
+	err := db.client.HSet(ctx, key, record).Err()
+	if err != nil {
+		return err
+	}
+
+	return db.client.Expire(ctx, key, ttl).Err()
 }
 
 func (db *RedisDB) Ping(ctx context.Context) bool {

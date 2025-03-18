@@ -70,13 +70,24 @@ func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
 
 func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	ttl, errGetTTL := getTTL(r)
-
 	if errGetTTL != nil {
 		log.Printf(
 			"Error on parsing ttl: %s. Response to client %s with code %d",
 			errGetTTL.Error(),
 			r.RemoteAddr,
-			http.StatusInternalServerError,
+			http.StatusUnprocessableEntity,
+		)
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		return
+	}
+
+	disposable, errGetDisposable := getDisposable(r)
+	if errGetDisposable != nil {
+		log.Printf(
+			"Error on validating disposable argument: %s. Response to client %s with code %d",
+			errGetDisposable.Error(),
+			r.RemoteAddr,
+			http.StatusUnprocessableEntity,
 		)
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		return
@@ -100,12 +111,24 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key, cacheErr := keys.Cache(
-		app.Db,
-		4*time.Second,
-		body,
-		ttl,
-	)
+	var key string
+	var cacheErr error
+
+	if disposable {
+		key, cacheErr = keys.CacheDisposable(
+			app.Db,
+			4*time.Second,
+			body,
+			ttl,
+		)
+	} else {
+		key, cacheErr = keys.Cache(
+			app.Db,
+			4*time.Second,
+			body,
+			ttl,
+		)
+	}
 
 	if cacheErr != nil {
 		log.Printf("Error on setting key: %s, suffered user %s", cacheErr.Error(), r.RemoteAddr)
@@ -189,6 +212,24 @@ func getTTL(r *http.Request) (time.Duration, error) {
 	}
 
 	return ttl, nil
+}
+
+func getDisposable(r *http.Request) (bool, error) {
+	disposableQuery := r.URL.Query().Get("disposable")
+
+	if disposableQuery == "" {
+		return false, nil
+	}
+
+	if disposableQuery == "true" {
+		return true, nil
+	}
+
+	if disposableQuery == "false" {
+		return false, nil
+	}
+
+	return false, fmt.Errorf("Disposable argumant can be only 'true' or 'false'")
 }
 
 func detectScheme(r *http.Request) string {

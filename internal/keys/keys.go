@@ -17,6 +17,14 @@ func Get(db storage.KeysDB, key string, timeout time.Duration) ([]byte, error) {
 }
 
 func Cache(db storage.KeysDB, timeout time.Duration, text []byte, ttl time.Duration) (string, error) {
+	return cache(db, timeout, text, ttl, false)
+}
+
+func CacheDisposable(db storage.KeysDB, timeout time.Duration, text []byte, ttl time.Duration) (string, error) {
+	return cache(db, timeout, text, ttl, true)
+}
+
+func cache(db storage.KeysDB, timeout time.Duration, text []byte, ttl time.Duration, disposable bool) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -26,7 +34,11 @@ func Cache(db storage.KeysDB, timeout time.Duration, text []byte, ttl time.Durat
 		return "", fmt.Errorf("Error on generating unique key: %w", err)
 	}
 
-	err = db.Set(ctx, uniqKey, text, ttl)
+	if disposable {
+		err = db.SetDisposable(ctx, uniqKey, text, ttl)
+	} else {
+		err = db.Set(ctx, uniqKey, text, ttl)
+	}
 
 	if err != nil {
 		return "", fmt.Errorf("Error on setting key '%s' in db: %w", uniqKey, err)
@@ -82,7 +94,7 @@ func generateKey(length int) string {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	chars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	result := make([]byte, length)
-	for i := 0; i < length; i++ {
+	for i := range length {
 		result[i] = chars[r.Intn(len(chars))]
 	}
 

@@ -46,5 +46,12 @@ echo "hello" | curl --data-binary @- 'localhost:8080/?ttl=30m'
 echo "hello" | curl --data-binary @- 'localhost:8080/?ttl=60s'
 ```
 
+Put disposable text
+```sh
+echo "hello" | curl --data-binary @- 'localhost:8080/?disposable=true'
+url -i http://localhost:8080/V6A6NySdsnGuFS/  ## 200 OK
+curl -i http://localhost:8080/V6A6NySdsnGuFS/  ## 404 Not found
+```
+
 
 <h1 align="center"><a href="#top">▲</a></h1>
