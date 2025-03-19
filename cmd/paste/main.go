@@ -30,6 +30,10 @@ func main() {
 		os.Exit(2)
 	}
 
+	runServer(&opts)
+}
+
+func runServer(opts *Options) {
 	log.Println("Connecting to database...")
 
 	redisHost := os.Getenv("REDIS_HOST")
