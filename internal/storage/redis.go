@@ -51,12 +51,14 @@ func (db *RedisDB) Get(ctx context.Context, key string) ([]byte, error) {
 		if countdownErr != nil {
 			panic("Fatal error when countdown: " + countdownErr.Error())
 		}
+		log.Printf("Decreased countdown disposable key '%s' when getting, countdown=%d", key, countdown)
 
 		if countdown < 1 {
 			delErr := db.client.Del(ctx, key).Err()
 			if delErr != nil {
 				panic("Fatal error when deletion disposable url: " + delErr.Error())
 			}
+			log.Printf("Removed disposable key '%s' when getting", key)
 		}
 	}
 
@@ -64,10 +66,12 @@ func (db *RedisDB) Get(ctx context.Context, key string) ([]byte, error) {
 }
 
 func (db *RedisDB) Set(ctx context.Context, key string, body []byte, ttl time.Duration) error {
+	log.Printf("Set key '%s' size=%d ttl=%s", key, len(body), ttl)
 	return db.set(ctx, key, body, ttl, false, 0)
 }
 
 func (db *RedisDB) SetDisposable(ctx context.Context, key string, body []byte, ttl time.Duration, countdown int) error {
+	log.Printf("Set disposable key '%s' size=%d ttl=%s countdown=%d", key, len(body), ttl, countdown)
 	return db.set(ctx, key, body, ttl, true, countdown)
 }
 

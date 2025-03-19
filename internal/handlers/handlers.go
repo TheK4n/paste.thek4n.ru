@@ -138,8 +138,6 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Set content with size %d on key '%s' with ttl %s from %s", len(body), key, ttl, r.RemoteAddr)
-
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 
