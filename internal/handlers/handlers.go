@@ -160,8 +160,9 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
 
 	scheme := detectScheme(r)
 
@@ -208,7 +209,7 @@ func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 		answer := make([]byte, 0)
 		answer = fmt.Appendf(answer, REDIRECT_BODY, string(record.Body))
 		w.Header().Set(http.CanonicalHeaderKey("content-type"), http.DetectContentType(answer))
-		http.Redirect(w, r, strings.TrimSpace(string(record.Body)), http.StatusMovedPermanently)
+		http.Redirect(w, r, strings.TrimSpace(string(record.Body)), http.StatusSeeOther)
 		_, writeErr := w.Write(answer)
 		if writeErr != nil {
 			log.Printf("Error on answer: %s, suffered user %s", writeErr.Error(), r.RemoteAddr)
