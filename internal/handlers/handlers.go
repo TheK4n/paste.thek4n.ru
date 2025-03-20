@@ -8,7 +8,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/thek4n/paste.thek4n.name/internal/keys"
@@ -25,6 +27,13 @@ const SECONDS_IN_YEAR = time.Second * 60 * 60 * 24 * 30 * 12
 const MAX_TTL = SECONDS_IN_YEAR
 
 const HEALTHCHECK_TIMEOUT = time.Second * 3
+
+const REDIRECT_BODY = `<html><head>
+<title>301 Moved Permanently</title>
+</head><body>
+<h1>Moved Permanently</h1>
+<p>The document has moved <a href="%s">here</a>.</p>
+</body></html>`
 
 type Application struct {
 	Version string
@@ -94,6 +103,18 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	isUrl, errGetURL := getURL(r)
+	if errGetURL != nil {
+		log.Printf(
+			"Error on validating url argument: %s. Response to client %s with code %d",
+			errGetURL.Error(),
+			r.RemoteAddr,
+			http.StatusUnprocessableEntity,
+		)
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		return
+	}
+
 	if r.ContentLength > ONE_MEBIBYTE {
 		w.WriteHeader(http.StatusRequestEntityTooLarge)
 		return
@@ -112,28 +133,28 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var key string
-	var cacheErr error
-
-	if disposable == 0 {
-		key, cacheErr = keys.Cache(
-			app.Db,
-			4*time.Second,
-			body,
-			ttl,
-		)
-	} else {
-		key, cacheErr = keys.CacheDisposable(
-			app.Db,
-			4*time.Second,
-			body,
-			ttl,
-			disposable,
-		)
+	if isUrl {
+		body = []byte(strings.TrimSpace(string(body)))
+		if !validateUrl(string(body)) {
+			log.Printf(
+				"Error on validating url body. Response to client %s with code %d",
+				r.RemoteAddr,
+				http.StatusUnprocessableEntity,
+			)
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			return
+		}
 	}
 
-	if cacheErr != nil {
-		log.Printf("Error on setting key: %s, suffered user %s", cacheErr.Error(), r.RemoteAddr)
+	var record storage.Record
+	record.Body = body
+	record.Disposable = disposable != 0
+	record.Countdown = disposable
+	record.URL = isUrl
+
+	key, err := keys.Cache(app.Db, 4*time.Second, ttl, record)
+	if err != nil {
+		log.Printf("Error on setting key: %s, suffered user %s", err, r.RemoteAddr)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -149,12 +170,14 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	log.Printf("Set key '%s' size=%d ttl=%s countdown=%d url=%t", key, len(body), ttl, disposable, isUrl)
 }
 
 func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 
-	content, getKeyErr := keys.Get(app.Db, key, 4*time.Second)
+	record, getKeyErr := keys.Get(app.Db, key, 4*time.Second)
 
 	if getKeyErr != nil {
 		if getKeyErr == storage.ErrKeyNotFound || errors.Unwrap(getKeyErr) == storage.ErrKeyNotFound {
@@ -180,8 +203,24 @@ func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if record.URL {
+		answer := make([]byte, 0)
+		answer = fmt.Appendf(answer, REDIRECT_BODY, string(record.Body))
+		w.Header().Set(http.CanonicalHeaderKey("content-type"), http.DetectContentType(answer))
+		http.Redirect(w, r, strings.TrimSpace(string(record.Body)), http.StatusMovedPermanently)
+		_, writeErr := w.Write(answer)
+		if writeErr != nil {
+			log.Printf("Error on answer: %s, suffered user %s", writeErr.Error(), r.RemoteAddr)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Redirect url by key '%s' from %s", key, r.RemoteAddr)
+		return
+	}
+
+	w.Header().Set(http.CanonicalHeaderKey("content-type"), http.DetectContentType(record.Body))
 	w.WriteHeader(http.StatusOK)
-	_, writeErr := w.Write(content)
+	_, writeErr := w.Write(record.Body)
 	if writeErr != nil {
 		log.Printf("Error on answer: %s, suffered user %s", writeErr.Error(), r.RemoteAddr)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -238,10 +277,33 @@ func getDisposable(r *http.Request) (int, error) {
 	return disposable, nil
 }
 
+func getURL(r *http.Request) (bool, error) {
+	URLQuery := r.URL.Query().Get("url")
+
+	if URLQuery == "" {
+		return false, nil
+	}
+
+	if URLQuery == "true" {
+		return true, nil
+	}
+
+	if URLQuery == "false" {
+		return false, nil
+	}
+
+	return false, fmt.Errorf("URL argument can be only 'true' or 'false'")
+}
+
 func detectScheme(r *http.Request) string {
 	if r.TLS == nil {
 		return "http://"
 	} else {
 		return "https://"
 	}
+}
+
+func validateUrl(str string) bool {
+	u, err := url.Parse(str)
+	return err == nil && u.Scheme != "" && u.Host != ""
 }

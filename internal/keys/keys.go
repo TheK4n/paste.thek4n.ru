@@ -9,37 +9,23 @@ import (
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
 
-func Get(db storage.KeysDB, key string, timeout time.Duration) ([]byte, error) {
+func Get(db storage.KeysDB, key string, timeout time.Duration) (storage.RecordAnswer, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	return db.Get(ctx, key)
 }
 
-func Cache(db storage.KeysDB, timeout time.Duration, text []byte, ttl time.Duration) (string, error) {
-	return cache(db, timeout, text, ttl, false, 0)
-}
-
-func CacheDisposable(db storage.KeysDB, timeout time.Duration, text []byte, ttl time.Duration, coundown int) (string, error) {
-	return cache(db, timeout, text, ttl, true, coundown)
-}
-
-func cache(db storage.KeysDB, timeout time.Duration, text []byte, ttl time.Duration, disposable bool, disposableCountdown int) (string, error) {
+func Cache(db storage.KeysDB, timeout time.Duration, ttl time.Duration, record storage.Record) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	uniqKey, err := waitUniqKey(ctx, db)
-
 	if err != nil {
 		return "", fmt.Errorf("Error on generating unique key: %w", err)
 	}
 
-	if disposable {
-		err = db.SetDisposable(ctx, uniqKey, text, ttl, disposableCountdown)
-	} else {
-		err = db.Set(ctx, uniqKey, text, ttl)
-	}
-
+	err = db.Set(ctx, uniqKey, ttl, record)
 	if err != nil {
 		return "", fmt.Errorf("Error on setting key '%s' in db: %w", uniqKey, err)
 	}

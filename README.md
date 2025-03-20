@@ -1,4 +1,4 @@
-<h1 align="center">Copy/Paste web service</h1>
+<h1 align="center">Copy/Paste and URL shortener web service</h1>
 
 <p align="center">
   <a href="https://github.com/TheK4n">
@@ -14,7 +14,7 @@
 
 ---
 
-Copy/Paste web service
+Copy/Paste and URL shortener web service
 
 
 ## Setup
@@ -48,9 +48,28 @@ echo "hello" | curl --data-binary @- 'localhost:8080/?ttl=60s'
 
 Put disposable text
 ```sh
-echo "hello" | curl --data-binary @- 'localhost:8080/?disposable=true'
-url -i http://localhost:8080/V6A6NySdsnGuFS/  ## 200 OK
+echo "hello" | curl --data-binary @- 'localhost:8080/?disposable=1'
+curl -i http://localhost:8080/V6A6NySdsnGuFS/  ## 200 OK
 curl -i http://localhost:8080/V6A6NySdsnGuFS/  ## 404 Not found
+
+
+echo "hello" | curl --data-binary @- 'localhost:8080/?disposable=2'
+curl -i http://localhost:8080/yA2gzkE01TwH3T/  ## 200 OK
+curl -i http://localhost:8080/yA2gzkE01TwH3T/  ## 200 OK
+curl -i http://localhost:8080/yA2gzkE01TwH3T/  ## 404 Not found
+```
+
+Put URL to redirect
+```sh
+echo "https://example.com/" | curl --data-binary @- 'localhost:8080/?url=true'
+curl -iL http://localhost:8080/e7xkQNSqrYRTkI/  # 301 Moved permanently
+```
+
+Put disposable url with 3 minute expiration time
+```sh
+echo "https://example.com/" | curl --data-binary @- 'localhost:8080/?url=true&disposable=1&ttl=3m'
+curl -iL http://localhost:8080/dz1SEKuTeHiQI9/  # 301 Moved permanently
+curl -iL http://localhost:8080/dz1SEKuTeHiQI9/  # 404 Not found
 ```
 
 
