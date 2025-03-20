@@ -38,7 +38,6 @@ const App: Component = () => {
   const [expirationTime, setExpiraitonTime] = createSignal<string>("");
   const [url, setURL] = createSignal<string>("");
 
-
   const setShortened = async (url: string) => {
     if (!/^https?:\/\//i.test(url)) {
       url = "https://" + url
@@ -46,7 +45,7 @@ const App: Component = () => {
 
     try {
       const answer = await shortenUrl(url, disposableCounter(), expirationTime())
-    setShortenedURL(answer)
+      setShortenedURL(answer)
     } catch (e) {
       alert("Error")
     }
@@ -65,6 +64,7 @@ const App: Component = () => {
               placeholder="https://example.com/"
               value={url()}
               onChange={(e) => setURL(e.currentTarget.value)}
+              onKeyPress={(e) => { if (e.key === "Enter") {setURL(e.currentTarget.value); setShortened(url())}}}
               required
               class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"/>
         </div>
@@ -77,6 +77,7 @@ const App: Component = () => {
                   placeholder="24h"
                   value={expirationTime()}
                   onChange={(e) => setExpiraitonTime(e.currentTarget.value)}
+                  onKeyPress={(e) => { if (e.key === "Enter") {setExpiraitonTime(e.currentTarget.value); setShortened(url())}}}
                   required
                   class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"/>
             </div>
@@ -89,6 +90,7 @@ const App: Component = () => {
                   id="visitors"
                   value={disposableCounter()}
                   onInput={(e) => setDisposableCounter(Number(e.currentTarget.value))}
+                  onKeyPress={(e) => { if (e.key === "Enter") {setDisposableCounter(Number(e.currentTarget.value)); setShortened(url())}}}
                   min="0"
                   max="255"
                   placeholder="0"
