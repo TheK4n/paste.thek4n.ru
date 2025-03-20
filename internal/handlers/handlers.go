@@ -151,6 +151,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	record.Disposable = disposable != 0
 	record.Countdown = disposable
 	record.URL = isUrl
+	record.Clicks = 0
 
 	key, err := keys.Cache(app.Db, 4*time.Second, ttl, record)
 	if err != nil {
@@ -227,6 +228,47 @@ func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("Get content by key '%s' from %s", key, r.RemoteAddr)
+}
+
+func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
+	key := r.PathValue("key")
+
+	clicks, err := keys.GetClicks(app.Db, key, 4*time.Second)
+	if err != nil {
+		if err == storage.ErrKeyNotFound || errors.Unwrap(err) == storage.ErrKeyNotFound {
+			w.WriteHeader(http.StatusNotFound)
+
+			_, writeErr := w.Write([]byte("404 Not Found"))
+			if writeErr != nil {
+				log.Printf("Error on answer: %s, suffered user %s", writeErr.Error(), r.RemoteAddr)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			log.Printf("Not found by key '%s' from %s", key, r.RemoteAddr)
+			return
+		} else {
+			log.Printf(
+				"Error on getting key: %s, suffered user %s",
+				err.Error(),
+				r.RemoteAddr,
+			)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+
+	body := []byte(strconv.Itoa(clicks))
+	w.Header().Set(http.CanonicalHeaderKey("content-type"), http.DetectContentType(body))
+	w.WriteHeader(http.StatusOK)
+
+	_, writeErr := w.Write(body)
+	if writeErr != nil {
+		log.Printf("Error on answer: %s, suffered user %s", writeErr.Error(), r.RemoteAddr)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	log.Printf("Get clicks by key '%s' from %s", key, r.RemoteAddr)
 }
 
 func getTTL(r *http.Request) (time.Duration, error) {

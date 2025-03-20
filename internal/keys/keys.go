@@ -16,6 +16,13 @@ func Get(db storage.KeysDB, key string, timeout time.Duration) (storage.RecordAn
 	return db.Get(ctx, key)
 }
 
+func GetClicks(db storage.KeysDB, key string, timeout time.Duration) (int, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	return db.GetClicks(ctx, key)
+}
+
 func Cache(db storage.KeysDB, timeout time.Duration, ttl time.Duration, record storage.Record) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

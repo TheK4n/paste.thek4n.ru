@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -36,10 +37,15 @@ func (db *RedisDB) Get(ctx context.Context, key string) (RecordAnswer, error) {
 
 	var record Record
 	err = db.client.HGetAll(ctx, key).Scan(&record)
-
 	if err != nil {
 		return answer, err
 	}
+
+	clicks, clicksErr := db.client.HIncrBy(ctx, key, "clicks", 1).Result()
+	if clicksErr != nil {
+		return answer, clicksErr
+	}
+	log.Printf("Increased click counter for key '%s', now: %d", key, clicks)
 
 	if record.Disposable {
 		countdown, countdownErr := db.client.HIncrBy(ctx, key, "countdown", -1).Result()
@@ -61,6 +67,24 @@ func (db *RedisDB) Get(ctx context.Context, key string) (RecordAnswer, error) {
 	answer.URL = record.URL
 
 	return answer, nil
+}
+
+func (db *RedisDB) GetClicks(ctx context.Context, key string) (int, error) {
+	exists, err := db.Exists(ctx, key)
+	if err != nil {
+		return 0, err
+	}
+
+	if !exists {
+		return 0, ErrKeyNotFound
+	}
+
+	clicks, err := db.client.HGet(ctx, key, "clicks").Result()
+	if err != nil {
+		return 0, err
+	}
+
+	return strconv.Atoi(clicks)
 }
 
 func (db *RedisDB) Set(ctx context.Context, key string, ttl time.Duration, record Record) error {

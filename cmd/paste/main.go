@@ -51,9 +51,10 @@ func runServer(opts *Options) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{key}/", handlers.Get)
+	mux.HandleFunc("GET /{key}/clicks/", handlers.GetClicks)
 	mux.HandleFunc("POST /", handlers.Cache)
 	if opts.Health {
-		mux.HandleFunc("GET /health/", handlers.Healthcheck)
+		mux.HandleFunc("GET /health", handlers.Healthcheck)
 	}
 
 	hostport := fmt.Sprintf("%s:%d", opts.Host, opts.Port)
