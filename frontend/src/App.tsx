@@ -40,7 +40,7 @@ const App: Component = () => {
 
 
   const setShortened = async (url: string) => {
-    if (!url.startsWith("http://") || !url.startsWith("https://")) {
+    if (!/^https?:\/\//i.test(url)) {
       url = "https://" + url
     }
 
