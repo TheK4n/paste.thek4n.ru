@@ -74,7 +74,7 @@ curl -iL http://localhost:8080/dz1SEKuTeHiQI9/  # 404 Not found
 
 Get clicks
 ```sh
-curl -iL http://localhost:8080/dz1SEKuTeHiQI9/cliks/  # 1
+curl -iL http://localhost:8080/dz1SEKuTeHiQI9/clicks/  # 1
 ```
 
 
