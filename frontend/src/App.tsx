@@ -7,6 +7,7 @@ async function shortenUrl(url: string, disposable: number, ttl: string): Promise
     throw new Error("Error: disposable counter cant be more then 255")
   }
 
+
   const response = await fetch(`http://paste.thek4n.ru/?url=true&ttl=${ttl}&disposable=${disposable}`,
     {
       method: "POST",
