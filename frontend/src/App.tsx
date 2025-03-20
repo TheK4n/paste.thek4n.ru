@@ -31,7 +31,7 @@ async function shortenUrl(url: string, disposable: number, ttl: string): Promise
 
 const App: Component = () => {
   const [disposableCounter, setDisposableCounter] = createSignal<number>(0);
-  const [expirationTime, setExpiraitonTime] = createSignal<string>("60s");
+  const [expirationTime, setExpiraitonTime] = createSignal<string>("");
   const [url, setURL] = createSignal<string>("");
 
 
@@ -62,7 +62,7 @@ const App: Component = () => {
                 <input
                   type="text"
                   id="ttl"
-                  placeholder="60s"
+                  placeholder="24h"
                   value={expirationTime()}
                   onChange={(e) => setExpiraitonTime(e.currentTarget.value)}
                   required
