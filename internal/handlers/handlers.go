@@ -29,9 +29,9 @@ const MAX_TTL = SECONDS_IN_YEAR
 const HEALTHCHECK_TIMEOUT = time.Second * 3
 
 const REDIRECT_BODY = `<html><head>
-<title>301 Moved Permanently</title>
+<title>303 See Other</title>
 </head><body>
-<h1>Moved Permanently</h1>
+<h1>See Other</h1>
 <p>The document has moved <a href="%s">here</a>.</p>
 </body></html>`
 

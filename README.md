@@ -68,13 +68,13 @@ curl -i http://localhost:8080/yA2gzkE01TwH3T/  ## 404 Not found
 Put URL to redirect
 ```sh
 echo "https://example.com/" | curl --data-binary @- 'localhost:8080/?url=true'
-curl -iL http://localhost:8080/e7xkQNSqrYRTkI/  # 301 Moved permanently
+curl -iL http://localhost:8080/e7xkQNSqrYRTkI/  # 303 See Other
 ```
 
 Put disposable url with 3 minute expiration time
 ```sh
 echo "https://example.com/" | curl --data-binary @- 'localhost:8080/?url=true&disposable=1&ttl=3m'
-curl -iL http://localhost:8080/dz1SEKuTeHiQI9/  # 301 Moved permanently
+curl -iL http://localhost:8080/dz1SEKuTeHiQI9/  # 303 See Other
 curl -iL http://localhost:8080/dz1SEKuTeHiQI9/  # 404 Not found
 ```
 
