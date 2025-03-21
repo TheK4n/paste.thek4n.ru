@@ -26,9 +26,8 @@ docker compose up -d
 
 # frontend
 cd frontend
-npm i
-echo 'VITE_API_URL=http://localhost:8080' > .env
-npm run dev
+docker build -t thek4n/paste-frontend --build-arg VITE_API_URL=http://paste.thek4n.ru .
+docker run --rm -p 8080:80 thek4n/paste-frontend
 ```
 
 
