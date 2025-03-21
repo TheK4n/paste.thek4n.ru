@@ -23,6 +23,12 @@ Copy/Paste and URL shortener web service
 cd "$(mktemp -d)"
 git clone https://github.com/thek4n/paste.thek4n.name .
 docker compose up -d
+
+# frontend
+cd frontend
+npm i
+echo 'VITE_API_URL=http://localhost:8080' > .env
+npm run dev
 ```
 
 
