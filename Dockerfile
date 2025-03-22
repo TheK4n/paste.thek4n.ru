@@ -26,6 +26,4 @@ COPY --from=upx /app/ /app
 
 EXPOSE 80
 
-HEALTHCHECK --interval=5s --timeout=10s --retries=3 CMD ["/app/ping", "--method", "json", "http://localhost:80/health"]
-
 CMD ["/app/paste", "--host", "0.0.0.0", "--port", "80", "--dbport", "6379", "--health"]
