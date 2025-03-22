@@ -11,7 +11,7 @@ ENV VITE_API_URL=$VITE_API_URL
 RUN npm install && npm run build
 
 
-FROM nginx
+FROM nginx:1.26-alpine-slim
 
 WORKDIR /usr/share/nginx/html
 
