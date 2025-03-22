@@ -23,22 +23,23 @@ Copy/Paste and URL shortener web service
 cd "$(mktemp -d)"
 git clone https://github.com/thek4n/paste.thek4n.name .
 docker compose up -d
-
-# frontend
-cd frontend
-docker build -t thek4n/paste-frontend --build-arg VITE_API_URL=http://paste.thek4n.ru .
-docker run --rm -p 8080:80 thek4n/paste-frontend
 ```
 
 
 ## Usage
 
+### Webinterface
+http://localhost:8080/
+
+
+### API
+
 Put text and get it by unique url
 ```sh
-echo "hello" | curl --data-binary @- localhost:8080/
-# http://localhost:8080/8fYfLk34Y1H3UQ/
+echo "hello" | curl --data-binary @- localhost:8081/
+# http://localhost:8081/8fYfLk34Y1H3UQ/
 
-curl http://localhost:8080/8fYfLk34Y1H3UQ/
+curl http://localhost:8081/8fYfLk34Y1H3UQ/
 # hello
 ```
 
@@ -46,40 +47,40 @@ curl http://localhost:8080/8fYfLk34Y1H3UQ/
 
 Put text with expiration time
 ```sh
-echo "hello" | curl --data-binary @- 'localhost:8080/?ttl=3h'
-echo "hello" | curl --data-binary @- 'localhost:8080/?ttl=30m'
-echo "hello" | curl --data-binary @- 'localhost:8080/?ttl=60s'
+echo "hello" | curl --data-binary @- 'localhost:8081/?ttl=3h'
+echo "hello" | curl --data-binary @- 'localhost:8081/?ttl=30m'
+echo "hello" | curl --data-binary @- 'localhost:8081/?ttl=60s'
 ```
 
 Put disposable text
 ```sh
-echo "hello" | curl --data-binary @- 'localhost:8080/?disposable=1'
-curl -i http://localhost:8080/V6A6NySdsnGuFS/  ## 200 OK
-curl -i http://localhost:8080/V6A6NySdsnGuFS/  ## 404 Not found
+echo "hello" | curl --data-binary @- 'localhost:8081/?disposable=1'
+curl -i http://localhost:8081/V6A6NySdsnGuFS/  ## 200 OK
+curl -i http://localhost:8081/V6A6NySdsnGuFS/  ## 404 Not found
 
 
-echo "hello" | curl --data-binary @- 'localhost:8080/?disposable=2'
-curl -i http://localhost:8080/yA2gzkE01TwH3T/  ## 200 OK
-curl -i http://localhost:8080/yA2gzkE01TwH3T/  ## 200 OK
-curl -i http://localhost:8080/yA2gzkE01TwH3T/  ## 404 Not found
+echo "hello" | curl --data-binary @- 'localhost:8081/?disposable=2'
+curl -i http://localhost:8081/yA2gzkE01TwH3T/  ## 200 OK
+curl -i http://localhost:8081/yA2gzkE01TwH3T/  ## 200 OK
+curl -i http://localhost:8081/yA2gzkE01TwH3T/  ## 404 Not found
 ```
 
 Put URL to redirect
 ```sh
-echo "https://example.com/" | curl --data-binary @- 'localhost:8080/?url=true'
-curl -iL http://localhost:8080/e7xkQNSqrYRTkI/  # 303 See Other
+echo "https://example.com/" | curl --data-binary @- 'localhost:8081/?url=true'
+curl -iL http://localhost:8081/e7xkQNSqrYRTkI/  # 303 See Other
 ```
 
 Put disposable url with 3 minute expiration time
 ```sh
-echo "https://example.com/" | curl --data-binary @- 'localhost:8080/?url=true&disposable=1&ttl=3m'
-curl -iL http://localhost:8080/dz1SEKuTeHiQI9/  # 303 See Other
-curl -iL http://localhost:8080/dz1SEKuTeHiQI9/  # 404 Not found
+echo "https://example.com/" | curl --data-binary @- 'localhost:8081/?url=true&disposable=1&ttl=3m'
+curl -iL http://localhost:8081/dz1SEKuTeHiQI9/  # 303 See Other
+curl -iL http://localhost:8081/dz1SEKuTeHiQI9/  # 404 Not found
 ```
 
 Get clicks
 ```sh
-curl -iL http://localhost:8080/dz1SEKuTeHiQI9/clicks/  # 1
+curl -iL http://localhost:8081/dz1SEKuTeHiQI9/clicks/  # 1
 ```
 
 
