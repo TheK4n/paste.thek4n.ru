@@ -36,7 +36,7 @@ http://localhost:8080/
 
 Put text and get it by unique url
 ```sh
-URL="$(curl --data-binary 'Hello' 'localhost:8081/')"
+URL="$(curl -d 'Hello' 'localhost:8081/')"
 echo "${URL}"  # http://localhost:8081/8fYfLk34Y1H3UQ/
 curl "${URL}"  # Hello
 ```
@@ -45,21 +45,21 @@ curl "${URL}"  # Hello
 
 Put text with expiration time
 ```sh
-curl --data-binary 'Hello' 'localhost:8081/?ttl=3h'
-curl --data-binary 'Hello' 'localhost:8081/?ttl=30m'
-URL="$(curl --data-binary 'Hello' 'localhost:8081/?ttl=60s')"
+curl -d 'Hello' 'localhost:8081/?ttl=3h'
+curl -d 'Hello' 'localhost:8081/?ttl=30m'
+URL="$(curl -d 'Hello' 'localhost:8081/?ttl=60s')"
 
 sleep 61 && curl -i "${URL}"  # 404 Not Found
 ```
 
 Put disposable text
 ```sh
-URL="$(curl --data-binary 'Hello' 'localhost:8081/?disposable=1')"
+URL="$(curl -d 'Hello' 'localhost:8081/?disposable=1')"
 curl -i "${URL}"  # Hello
 curl -i "${URL}"  # 404 Not Found
 
 ```sh
-URL="$(curl --data-binary 'Hello' 'localhost:8081/?disposable=2')"
+URL="$(curl -d 'Hello' 'localhost:8081/?disposable=2')"
 curl -i "${URL}"  # Hello
 curl -i "${URL}"  # Hello
 curl -i "${URL}"  # 404 Not Found
@@ -67,7 +67,7 @@ curl -i "${URL}"  # 404 Not Found
 
 Put URL to redirect
 ```sh
-URL="$(curl --data-binary 'https://example.com/' 'localhost:8081/?url=true')"
+URL="$(curl -d 'https://example.com/' 'localhost:8081/?url=true')"
 curl -iL "${URL}"  # 303 See Other
 ```
 
@@ -78,7 +78,7 @@ curl -iL "${URL}/clicks/"  # 1
 
 Put disposable url with 3 minute expiration time
 ```sh
-URL="$(curl --data-binary 'https://example.com/' 'localhost:8081/?url=true&disposable=1&ttl=3m')"
+URL="$(curl -d 'https://example.com/' 'localhost:8081/?url=true&disposable=1&ttl=3m')"
 curl -iL "${URL}"  # 303 See Other
 curl -iL "${URL}"  # 404 Not found
 ```
