@@ -36,51 +36,51 @@ http://localhost:8080/
 
 Put text and get it by unique url
 ```sh
-echo "hello" | curl --data-binary @- localhost:8081/
-# http://localhost:8081/8fYfLk34Y1H3UQ/
-
-curl http://localhost:8081/8fYfLk34Y1H3UQ/
-# hello
+URL="$(curl --data-binary 'Hello' 'localhost:8081/')"
+echo "${URL}"  # http://localhost:8081/8fYfLk34Y1H3UQ/
+curl "${URL}"  # Hello
 ```
 
 ---
 
 Put text with expiration time
 ```sh
-echo "hello" | curl --data-binary @- 'localhost:8081/?ttl=3h'
-echo "hello" | curl --data-binary @- 'localhost:8081/?ttl=30m'
-echo "hello" | curl --data-binary @- 'localhost:8081/?ttl=60s'
+curl --data-binary 'Hello' 'localhost:8081/?ttl=3h'
+curl --data-binary 'Hello' 'localhost:8081/?ttl=30m'
+URL="$(curl --data-binary 'Hello' 'localhost:8081/?ttl=60s')"
+
+sleep 61 && curl -i "${URL}"  # 404 Not Found
 ```
 
 Put disposable text
 ```sh
-echo "hello" | curl --data-binary @- 'localhost:8081/?disposable=1'
-curl -i http://localhost:8081/V6A6NySdsnGuFS/  ## 200 OK
-curl -i http://localhost:8081/V6A6NySdsnGuFS/  ## 404 Not found
+URL="$(curl --data-binary 'Hello' 'localhost:8081/?disposable=1')"
+curl -i "${URL}"  # Hello
+curl -i "${URL}"  # 404 Not Found
 
-
-echo "hello" | curl --data-binary @- 'localhost:8081/?disposable=2'
-curl -i http://localhost:8081/yA2gzkE01TwH3T/  ## 200 OK
-curl -i http://localhost:8081/yA2gzkE01TwH3T/  ## 200 OK
-curl -i http://localhost:8081/yA2gzkE01TwH3T/  ## 404 Not found
+```sh
+URL="$(curl --data-binary 'Hello' 'localhost:8081/?disposable=2')"
+curl -i "${URL}"  # Hello
+curl -i "${URL}"  # Hello
+curl -i "${URL}"  # 404 Not Found
 ```
 
 Put URL to redirect
 ```sh
-echo "https://example.com/" | curl --data-binary @- 'localhost:8081/?url=true'
-curl -iL http://localhost:8081/e7xkQNSqrYRTkI/  # 303 See Other
-```
-
-Put disposable url with 3 minute expiration time
-```sh
-echo "https://example.com/" | curl --data-binary @- 'localhost:8081/?url=true&disposable=1&ttl=3m'
-curl -iL http://localhost:8081/dz1SEKuTeHiQI9/  # 303 See Other
-curl -iL http://localhost:8081/dz1SEKuTeHiQI9/  # 404 Not found
+URL="$(curl --data-binary 'https://example.com/' 'localhost:8081/?url=true')"
+curl -iL "${URL}"  # 303 See Other
 ```
 
 Get clicks
 ```sh
-curl -iL http://localhost:8081/dz1SEKuTeHiQI9/clicks/  # 1
+curl -iL "${URL}/clicks/"  # 1
+```
+
+Put disposable url with 3 minute expiration time
+```sh
+URL="$(curl --data-binary 'https://example.com/' 'localhost:8081/?url=true&disposable=1&ttl=3m')"
+curl -iL "${URL}"  # 303 See Other
+curl -iL "${URL}"  # 404 Not found
 ```
 
 
