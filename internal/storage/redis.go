@@ -11,11 +11,11 @@ import (
 )
 
 type RedisDB struct {
-	client *redis.Client
+	Client *redis.Client
 }
 
 func (db *RedisDB) Exists(ctx context.Context, key string) (bool, error) {
-	keysNumber, err := db.client.Exists(ctx, key).Uint64()
+	keysNumber, err := db.Client.Exists(ctx, key).Uint64()
 	if err != nil {
 		return false, err
 	}
@@ -36,26 +36,26 @@ func (db *RedisDB) Get(ctx context.Context, key string) (RecordAnswer, error) {
 	}
 
 	var record Record
-	err = db.client.HGetAll(ctx, key).Scan(&record)
+	err = db.Client.HGetAll(ctx, key).Scan(&record)
 	if err != nil {
 		return answer, err
 	}
 
-	clicks, clicksErr := db.client.HIncrBy(ctx, key, "clicks", 1).Result()
+	clicks, clicksErr := db.Client.HIncrBy(ctx, key, "clicks", 1).Result()
 	if clicksErr != nil {
 		return answer, clicksErr
 	}
 	log.Printf("Increased click counter for key '%s', now: %d", key, clicks)
 
 	if record.Disposable {
-		countdown, countdownErr := db.client.HIncrBy(ctx, key, "countdown", -1).Result()
+		countdown, countdownErr := db.Client.HIncrBy(ctx, key, "countdown", -1).Result()
 		if countdownErr != nil {
 			panic("Fatal error when countdown: " + countdownErr.Error())
 		}
 		log.Printf("Decreased countdown disposable key '%s' when getting, countdown=%d", key, countdown)
 
 		if countdown < 1 {
-			delErr := db.client.Del(ctx, key).Err()
+			delErr := db.Client.Del(ctx, key).Err()
 			if delErr != nil {
 				panic("Fatal error when deletion disposable url: " + delErr.Error())
 			}
@@ -79,7 +79,7 @@ func (db *RedisDB) GetClicks(ctx context.Context, key string) (int, error) {
 		return 0, ErrKeyNotFound
 	}
 
-	clicks, err := db.client.HGet(ctx, key, "clicks").Result()
+	clicks, err := db.Client.HGet(ctx, key, "clicks").Result()
 	if err != nil {
 		return 0, err
 	}
@@ -88,16 +88,16 @@ func (db *RedisDB) GetClicks(ctx context.Context, key string) (int, error) {
 }
 
 func (db *RedisDB) Set(ctx context.Context, key string, ttl time.Duration, record Record) error {
-	err := db.client.HSet(ctx, key, record).Err()
+	err := db.Client.HSet(ctx, key, record).Err()
 	if err != nil {
 		return err
 	}
 
-	return db.client.Expire(ctx, key, ttl).Err()
+	return db.Client.Expire(ctx, key, ttl).Err()
 }
 
 func (db *RedisDB) Ping(ctx context.Context) bool {
-	if err := db.client.Ping(ctx).Err(); err != nil {
+	if err := db.Client.Ping(ctx).Err(); err != nil {
 		return false
 	}
 
@@ -121,5 +121,5 @@ func InitStorageDB(dbHost string, dbPort int) (*RedisDB, error) {
 
 	log.Printf("Connected to database on %s:%d\n", dbHost, dbPort)
 
-	return &RedisDB{client: client}, nil
+	return &RedisDB{Client: client}, nil
 }
