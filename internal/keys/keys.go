@@ -27,7 +27,7 @@ func Cache(db storage.KeysDB, timeout time.Duration, ttl time.Duration, record s
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	uniqKey, err := waitUniqKey(ctx, db)
+	uniqKey, err := generateUniqKey(ctx, db)
 	if err != nil {
 		return "", fmt.Errorf("Error on generating unique key: %w", err)
 	}
@@ -38,23 +38,6 @@ func Cache(db storage.KeysDB, timeout time.Duration, ttl time.Duration, record s
 	}
 
 	return uniqKey, nil
-}
-
-func waitUniqKey(ctx context.Context, db storage.KeysDB) (string, error) {
-	keych := make(chan string)
-	go sendUniqKey(ctx, db, keych)
-
-	select {
-	case key := <-keych:
-		return key, nil
-	case <-ctx.Done():
-		return "", fmt.Errorf("Timeout")
-	}
-}
-
-func sendUniqKey(ctx context.Context, db storage.KeysDB, keych chan string) {
-	key, _ := generateUniqKey(ctx, db)
-	keych <- key
 }
 
 func generateUniqKey(ctx context.Context, db storage.KeysDB) (string, error) {

@@ -2,8 +2,8 @@ package keys
 
 import (
 	"context"
-	"testing"
 	"fmt"
+	"testing"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -11,9 +11,7 @@ import (
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
 
-
 var DB *storage.RedisDB
-
 
 func init() {
 	client := redis.NewClient(&redis.Options{
