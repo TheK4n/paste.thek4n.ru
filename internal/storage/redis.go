@@ -93,7 +93,11 @@ func (db *RedisDB) Set(ctx context.Context, key string, ttl time.Duration, recor
 		return err
 	}
 
-	return db.Client.Expire(ctx, key, ttl).Err()
+	if ttl != time.Duration(0) {
+		return db.Client.Expire(ctx, key, ttl).Err()
+	}
+
+	return nil
 }
 
 func (db *RedisDB) Ping(ctx context.Context) bool {

@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -19,12 +20,19 @@ import (
 
 const ONE_MEBIBYTE = 1048576
 
-const SECONDS_IN_MONTH = time.Second * 60 * 60 * 24 * 30
-const DEFAULT_TTL_SECONDS = SECONDS_IN_MONTH
-const MIN_TTL = time.Second * 60
+const SECONDS_IN_MONTH = 60 * 60 * 24 * 30
+const DEFAULT_TTL_SECONDS = time.Second * SECONDS_IN_MONTH
 
-const SECONDS_IN_YEAR = time.Second * 60 * 60 * 24 * 30 * 12
-const MAX_TTL = SECONDS_IN_YEAR
+const SECONDS_IN_MINUTE = 60
+const MIN_TTL = time.Second * SECONDS_IN_MINUTE
+
+const SECONDS_IN_YEAR = 60 * 60 * 24 * 30 * 12
+const MAX_TTL = time.Second * SECONDS_IN_YEAR
+
+const MAX_KEY_LENGTH = 20
+const DEFAULT_KEY_LENGTH = 14
+const UNPRIVELEGED_MIN_KEY_LENGTH = 14
+const PRIVELEGED_MIN_KEY_LENGTH = 3
 
 const HEALTHCHECK_TIMEOUT = time.Second * 3
 
@@ -84,6 +92,18 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		log.Printf(
 			"Error on parsing ttl: %s. Response to client %s with code %d",
 			errGetTTL.Error(),
+			r.RemoteAddr,
+			http.StatusUnprocessableEntity,
+		)
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		return
+	}
+
+	length, errGetLength := getLength(r)
+	if errGetLength != nil {
+		log.Printf(
+			"Error on parsing length: %s. Response to client %s with code %d",
+			errGetLength.Error(),
 			r.RemoteAddr,
 			http.StatusUnprocessableEntity,
 		)
@@ -153,7 +173,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	record.URL = isUrl
 	record.Clicks = 0
 
-	key, err := keys.Cache(app.Db, 4*time.Second, ttl, record)
+	key, err := keys.Cache(app.Db, 4*time.Second, ttl, length, record)
 	if err != nil {
 		log.Printf("Error on setting key: %s, suffered user %s", err, r.RemoteAddr)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -280,9 +300,16 @@ func getTTL(r *http.Request) (time.Duration, error) {
 	}
 
 	ttl, err := time.ParseDuration(ttlQuery)
-
 	if err != nil {
 		return 0, err
+	}
+
+	if ttl == time.Duration(0) {
+		apiKey := r.URL.Query().Get("apikey")
+		if validateApikey(apiKey) {
+			return ttl, nil
+		}
+		return 0, fmt.Errorf("TTL can`t be less then %s", MIN_TTL)
 	}
 
 	if ttl < MIN_TTL {
@@ -304,7 +331,6 @@ func getDisposable(r *http.Request) (int, error) {
 	}
 
 	disposable, err := strconv.Atoi(disposableQuery)
-
 	if err != nil {
 		return 0, err
 	}
@@ -318,6 +344,36 @@ func getDisposable(r *http.Request) (int, error) {
 	}
 
 	return disposable, nil
+}
+
+func getLength(r *http.Request) (int, error) {
+	lengthQuery := r.URL.Query().Get("len")
+
+	if lengthQuery == "" {
+		return DEFAULT_KEY_LENGTH, nil
+	}
+
+	length, err := strconv.Atoi(lengthQuery)
+	if err != nil {
+		return 0, err
+	}
+
+	if length < UNPRIVELEGED_MIN_KEY_LENGTH {
+		if length < PRIVELEGED_MIN_KEY_LENGTH {
+			return 0, fmt.Errorf("Priveleged length can`t be less then %d", PRIVELEGED_MIN_KEY_LENGTH)
+		}
+		apiKey := r.URL.Query().Get("apikey")
+		if validateApikey(apiKey) {
+			return length, nil
+		}
+		return 0, fmt.Errorf("Length can`t be less then %d", UNPRIVELEGED_MIN_KEY_LENGTH)
+	}
+
+	if length > MAX_KEY_LENGTH {
+		return 0, fmt.Errorf("Length can`t be more then %d", MAX_KEY_LENGTH)
+	}
+
+	return length, nil
 }
 
 func getURL(r *http.Request) (bool, error) {
@@ -349,4 +405,13 @@ func detectScheme(r *http.Request) string {
 func validateUrl(str string) bool {
 	u, err := url.Parse(str)
 	return err == nil && u.Scheme != "" && u.Host != ""
+}
+
+func validateApikey(str string) bool {
+	apiKey := os.Getenv("APIKEY")
+	if apiKey == "" {
+		return false
+	}
+
+	return str == apiKey
 }

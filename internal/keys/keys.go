@@ -23,11 +23,11 @@ func GetClicks(db storage.KeysDB, key string, timeout time.Duration) (int, error
 	return db.GetClicks(ctx, key)
 }
 
-func Cache(db storage.KeysDB, timeout time.Duration, ttl time.Duration, record storage.Record) (string, error) {
+func Cache(db storage.KeysDB, timeout time.Duration, ttl time.Duration, length int, record storage.Record) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	uniqKey, err := generateUniqKey(ctx, db)
+	uniqKey, err := generateUniqKey(ctx, db, length)
 	if err != nil {
 		return "", fmt.Errorf("Error on generating unique key: %w", err)
 	}
@@ -40,9 +40,7 @@ func Cache(db storage.KeysDB, timeout time.Duration, ttl time.Duration, record s
 	return uniqKey, nil
 }
 
-func generateUniqKey(ctx context.Context, db storage.KeysDB) (string, error) {
-	length := 14
-
+func generateUniqKey(ctx context.Context, db storage.KeysDB, length int) (string, error) {
 	key := generateKey(length)
 	exists, err := db.Exists(ctx, key)
 	if err != nil {

@@ -29,6 +29,6 @@ func init() {
 
 func BenchmarkWaitKey(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		waitUniqKey(context.Background(), DB)
+		generateUniqKey(context.Background(), DB)
 	}
 }
