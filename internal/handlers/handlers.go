@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -44,8 +43,9 @@ const REDIRECT_BODY = `<html><head>
 </body></html>`
 
 type Application struct {
-	Version string
-	Db      storage.RedisDB
+	Version   string
+	DB        storage.KeysDB
+	ApiKeysDB storage.APIKeysDB
 }
 
 type HealthcheckResponse struct {
@@ -62,7 +62,7 @@ func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), HEALTHCHECK_TIMEOUT)
 	defer cancel()
 
-	if !app.Db.Ping(ctx) {
+	if !app.DB.Ping(ctx) {
 		availability = false
 		msg = "Error connection to database"
 	}
@@ -87,7 +87,7 @@ func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
-	ttl, errGetTTL := getTTL(r)
+	ttl, errGetTTL := app.getTTL(r)
 	if errGetTTL != nil {
 		log.Printf(
 			"Error on parsing ttl: %s. Response to client %s with code %d",
@@ -99,7 +99,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	length, errGetLength := getLength(r)
+	length, errGetLength := app.getLength(r)
 	if errGetLength != nil {
 		log.Printf(
 			"Error on parsing length: %s. Response to client %s with code %d",
@@ -166,14 +166,14 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var record storage.Record
+	var record storage.KeyRecord
 	record.Body = body
 	record.Disposable = disposable != 0
 	record.Countdown = disposable
 	record.URL = isUrl
 	record.Clicks = 0
 
-	key, err := keys.Cache(app.Db, 4*time.Second, ttl, length, record)
+	key, err := keys.Cache(app.DB, 4*time.Second, ttl, length, record)
 	if err != nil {
 		log.Printf("Error on setting key: %s, suffered user %s", err, r.RemoteAddr)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -199,7 +199,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 
-	record, getKeyErr := keys.Get(app.Db, key, 4*time.Second)
+	record, getKeyErr := keys.Get(app.DB, key, 4*time.Second)
 
 	if getKeyErr != nil {
 		if getKeyErr == storage.ErrKeyNotFound || errors.Unwrap(getKeyErr) == storage.ErrKeyNotFound {
@@ -254,7 +254,7 @@ func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 
-	clicks, err := keys.GetClicks(app.Db, key, 4*time.Second)
+	clicks, err := keys.GetClicks(app.DB, key, 4*time.Second)
 	if err != nil {
 		if err == storage.ErrKeyNotFound || errors.Unwrap(err) == storage.ErrKeyNotFound {
 			w.WriteHeader(http.StatusNotFound)
@@ -292,7 +292,7 @@ func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Get clicks by key '%s' from %s", key, r.RemoteAddr)
 }
 
-func getTTL(r *http.Request) (time.Duration, error) {
+func (app *Application) getTTL(r *http.Request) (time.Duration, error) {
 	ttlQuery := r.URL.Query().Get("ttl")
 
 	if ttlQuery == "" {
@@ -306,7 +306,7 @@ func getTTL(r *http.Request) (time.Duration, error) {
 
 	if ttl == time.Duration(0) {
 		apiKey := r.URL.Query().Get("apikey")
-		if validateApikey(apiKey) {
+		if app.validateApikey(apiKey) {
 			return ttl, nil
 		}
 		return 0, fmt.Errorf("TTL can`t be less then %s", MIN_TTL)
@@ -346,7 +346,7 @@ func getDisposable(r *http.Request) (int, error) {
 	return disposable, nil
 }
 
-func getLength(r *http.Request) (int, error) {
+func (app *Application) getLength(r *http.Request) (int, error) {
 	lengthQuery := r.URL.Query().Get("len")
 
 	if lengthQuery == "" {
@@ -363,7 +363,7 @@ func getLength(r *http.Request) (int, error) {
 			return 0, fmt.Errorf("Priveleged length can`t be less then %d", PRIVELEGED_MIN_KEY_LENGTH)
 		}
 		apiKey := r.URL.Query().Get("apikey")
-		if validateApikey(apiKey) {
+		if app.validateApikey(apiKey) {
 			return length, nil
 		}
 		return 0, fmt.Errorf("Length can`t be less then %d", UNPRIVELEGED_MIN_KEY_LENGTH)
@@ -407,11 +407,11 @@ func validateUrl(str string) bool {
 	return err == nil && u.Scheme != "" && u.Host != ""
 }
 
-func validateApikey(str string) bool {
-	apiKey := os.Getenv("APIKEY")
-	if apiKey == "" {
+func (app *Application) validateApikey(str string) bool {
+	record, err := app.ApiKeysDB.Get(context.Background(), str)
+	if err != nil {
 		return false
 	}
 
-	return str == apiKey
+	return record.Valid
 }

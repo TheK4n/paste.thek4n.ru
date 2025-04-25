@@ -2,11 +2,11 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
 	"time"
-	"errors"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -15,7 +15,7 @@ var (
 	ErrKeyNotFound = errors.New("Key not found in db")
 )
 
-type Record struct {
+type KeyRecord struct {
 	Disposable bool   `redis:"disposable"`
 	URL        bool   `redis:"url"`
 	Countdown  int    `redis:"countdown"`
@@ -23,16 +23,16 @@ type Record struct {
 	Body       []byte `redis:"body"`
 }
 
-type RecordAnswer struct {
+type KeyRecordAnswer struct {
 	URL  bool   `redis:"url"`
 	Body []byte `redis:"body"`
 }
 
-type RedisDB struct {
+type KeysDB struct {
 	Client *redis.Client
 }
 
-func (db *RedisDB) Exists(ctx context.Context, key string) (bool, error) {
+func (db *KeysDB) Exists(ctx context.Context, key string) (bool, error) {
 	keysNumber, err := db.Client.Exists(ctx, key).Uint64()
 	if err != nil {
 		return false, err
@@ -41,8 +41,8 @@ func (db *RedisDB) Exists(ctx context.Context, key string) (bool, error) {
 	return keysNumber > 0, nil
 }
 
-func (db *RedisDB) Get(ctx context.Context, key string) (RecordAnswer, error) {
-	var answer RecordAnswer
+func (db *KeysDB) Get(ctx context.Context, key string) (KeyRecordAnswer, error) {
+	var answer KeyRecordAnswer
 	exists, err := db.Exists(ctx, key)
 
 	if err != nil {
@@ -53,7 +53,7 @@ func (db *RedisDB) Get(ctx context.Context, key string) (RecordAnswer, error) {
 		return answer, ErrKeyNotFound
 	}
 
-	var record Record
+	var record KeyRecord
 	err = db.Client.HGetAll(ctx, key).Scan(&record)
 	if err != nil {
 		return answer, err
@@ -87,7 +87,7 @@ func (db *RedisDB) Get(ctx context.Context, key string) (RecordAnswer, error) {
 	return answer, nil
 }
 
-func (db *RedisDB) GetClicks(ctx context.Context, key string) (int, error) {
+func (db *KeysDB) GetClicks(ctx context.Context, key string) (int, error) {
 	exists, err := db.Exists(ctx, key)
 	if err != nil {
 		return 0, err
@@ -105,7 +105,7 @@ func (db *RedisDB) GetClicks(ctx context.Context, key string) (int, error) {
 	return strconv.Atoi(clicks)
 }
 
-func (db *RedisDB) Set(ctx context.Context, key string, ttl time.Duration, record Record) error {
+func (db *KeysDB) Set(ctx context.Context, key string, ttl time.Duration, record KeyRecord) error {
 	err := db.Client.HSet(ctx, key, record).Err()
 	if err != nil {
 		return err
@@ -118,15 +118,11 @@ func (db *RedisDB) Set(ctx context.Context, key string, ttl time.Duration, recor
 	return nil
 }
 
-func (db *RedisDB) Ping(ctx context.Context) bool {
-	if err := db.Client.Ping(ctx).Err(); err != nil {
-		return false
-	}
-
-	return true
+func (db *KeysDB) Ping(ctx context.Context) bool {
+	return db.Client.Ping(ctx).Err() == nil
 }
 
-func InitStorageDB(dbHost string, dbPort int) (*RedisDB, error) {
+func InitKeysStorageDB(dbHost string, dbPort int) (*KeysDB, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr:         fmt.Sprintf("%s:%d", dbHost, dbPort),
 		Password:     "",
@@ -141,7 +137,7 @@ func InitStorageDB(dbHost string, dbPort int) (*RedisDB, error) {
 		return nil, err
 	}
 
-	log.Printf("Connected to database on %s:%d\n", dbHost, dbPort)
+	log.Printf("Connected to database 0 (keys) on %s:%d\n", dbHost, dbPort)
 
-	return &RedisDB{Client: client}, nil
+	return &KeysDB{Client: client}, nil
 }

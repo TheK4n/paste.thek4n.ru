@@ -13,22 +13,21 @@ const ATTEMPTS_TO_INCREASE_KEY_MIN_LENGHT = 20
 const MAX_KEY_LENGTH = 20
 const CHARSET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-
-func Get(db storage.RedisDB, key string, timeout time.Duration) (storage.RecordAnswer, error) {
+func Get(db storage.KeysDB, key string, timeout time.Duration) (storage.KeyRecordAnswer, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	return db.Get(ctx, key)
 }
 
-func GetClicks(db storage.RedisDB, key string, timeout time.Duration) (int, error) {
+func GetClicks(db storage.KeysDB, key string, timeout time.Duration) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	return db.GetClicks(ctx, key)
 }
 
-func Cache(db storage.RedisDB, timeout time.Duration, ttl time.Duration, length int, record storage.Record) (string, error) {
+func Cache(db storage.KeysDB, timeout time.Duration, ttl time.Duration, length int, record storage.KeyRecord) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -49,7 +48,7 @@ func Cache(db storage.RedisDB, timeout time.Duration, ttl time.Duration, length 
 // increases minLength if was attemptsToIncreaseMinLength attempts generate unique key
 // Return error if database error or context done or maxLength reached
 func generateUniqKey(
-	ctx context.Context, db storage.RedisDB,
+	ctx context.Context, db storage.KeysDB,
 	minLength int, maxLength int,
 	attemptsToIncreaseMinLength int,
 	charset string,

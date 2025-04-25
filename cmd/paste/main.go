@@ -41,13 +41,23 @@ func runServer(opts *Options) {
 		opts.DBHost = redisHost
 	}
 
-	db, err := storage.InitStorageDB(opts.DBHost, opts.DBPort)
+	db, err := storage.InitKeysStorageDB(opts.DBHost, opts.DBPort)
 	if err != nil {
 		log.Fatalf("failed to connect to database server: %s\n", err.Error())
 		return
 	}
 
-	handlers := handlers.Application{Version: VERSION, Db: *db}
+	apikeysDb, err := storage.InitAPIKeysStorageDB(opts.DBHost, opts.DBPort)
+	if err != nil {
+		log.Fatalf("failed to connect to database server: %s\n", err.Error())
+		return
+	}
+
+	handlers := handlers.Application{
+		Version:   VERSION,
+		DB:        *db,
+		ApiKeysDB: *apikeysDb,
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{key}/", handlers.Get)

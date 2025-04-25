@@ -11,7 +11,7 @@ import (
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
 
-var DB *storage.RedisDB
+var DB *storage.RecordsDB
 
 func init() {
 	client := redis.NewClient(&redis.Options{
@@ -24,7 +24,7 @@ func init() {
 		WriteTimeout: 5 * time.Second,
 	})
 
-	DB = &storage.RedisDB{Client: client}
+	DB = &storage.RecordsDB{Client: client}
 }
 
 func BenchmarkWaitKey(b *testing.B) {
