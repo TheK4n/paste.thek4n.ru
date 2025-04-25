@@ -6,9 +6,27 @@ import (
 	"log"
 	"strconv"
 	"time"
+	"errors"
 
 	"github.com/redis/go-redis/v9"
 )
+
+var (
+	ErrKeyNotFound = errors.New("Key not found in db")
+)
+
+type Record struct {
+	Disposable bool   `redis:"disposable"`
+	URL        bool   `redis:"url"`
+	Countdown  int    `redis:"countdown"`
+	Clicks     int    `redis:"clicks"`
+	Body       []byte `redis:"body"`
+}
+
+type RecordAnswer struct {
+	URL  bool   `redis:"url"`
+	Body []byte `redis:"body"`
+}
 
 type RedisDB struct {
 	Client *redis.Client

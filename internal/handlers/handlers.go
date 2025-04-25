@@ -45,7 +45,7 @@ const REDIRECT_BODY = `<html><head>
 
 type Application struct {
 	Version string
-	Db      storage.KeysDB
+	Db      storage.RedisDB
 }
 
 type HealthcheckResponse struct {

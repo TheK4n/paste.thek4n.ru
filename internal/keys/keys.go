@@ -9,21 +9,21 @@ import (
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
 
-func Get(db storage.KeysDB, key string, timeout time.Duration) (storage.RecordAnswer, error) {
+func Get(db storage.RedisDB, key string, timeout time.Duration) (storage.RecordAnswer, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	return db.Get(ctx, key)
 }
 
-func GetClicks(db storage.KeysDB, key string, timeout time.Duration) (int, error) {
+func GetClicks(db storage.RedisDB, key string, timeout time.Duration) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	return db.GetClicks(ctx, key)
 }
 
-func Cache(db storage.KeysDB, timeout time.Duration, ttl time.Duration, length int, record storage.Record) (string, error) {
+func Cache(db storage.RedisDB, timeout time.Duration, ttl time.Duration, length int, record storage.Record) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -40,7 +40,7 @@ func Cache(db storage.KeysDB, timeout time.Duration, ttl time.Duration, length i
 	return uniqKey, nil
 }
 
-func generateUniqKey(ctx context.Context, db storage.KeysDB, length int) (string, error) {
+func generateUniqKey(ctx context.Context, db storage.RedisDB, length int) (string, error) {
 	key := generateKey(length)
 	exists, err := db.Exists(ctx, key)
 	if err != nil {

@@ -47,7 +47,7 @@ func runServer(opts *Options) {
 		return
 	}
 
-	handlers := handlers.Application{Version: VERSION, Db: db}
+	handlers := handlers.Application{Version: VERSION, Db: *db}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{key}/", handlers.Get)
