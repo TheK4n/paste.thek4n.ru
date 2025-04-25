@@ -9,6 +9,10 @@ import (
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
 
+const ATTEMPTS_TO_INCREASE_KEY_MIN_LENGHT = 20
+const CHARSET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+
 func Get(db storage.RedisDB, key string, timeout time.Duration) (storage.RecordAnswer, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -27,7 +31,7 @@ func Cache(db storage.RedisDB, timeout time.Duration, ttl time.Duration, length 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	uniqKey, err := generateUniqKey(ctx, db, length)
+	uniqKey, err := generateUniqKey(ctx, db, length, ATTEMPTS_TO_INCREASE_KEY_MIN_LENGHT, CHARSET)
 	if err != nil {
 		return "", fmt.Errorf("Error on generating unique key: %w", err)
 	}
@@ -40,12 +44,15 @@ func Cache(db storage.RedisDB, timeout time.Duration, ttl time.Duration, length 
 	return uniqKey, nil
 }
 
-func generateUniqKey(ctx context.Context, db storage.RedisDB, length int) (string, error) {
-	key := generateKey(length)
+// Generates unique key with minimum lenght of minLength using charset
+// increases minLength if was attemptsToIncreaseMinLength attempts generate unique key
+func generateUniqKey(ctx context.Context, db storage.RedisDB, minLength int, attemptsToIncreaseMinLength int, charset string) (string, error) {
+	key := generateKey(minLength, charset)
 	exists, err := db.Exists(ctx, key)
 	if err != nil {
 		return "", err
 	}
+	currentAttemptsCountdown := attemptsToIncreaseMinLength
 
 	for exists {
 		select {
@@ -54,22 +61,29 @@ func generateUniqKey(ctx context.Context, db storage.RedisDB, length int) (strin
 		default:
 		}
 
-		key = generateKey(length)
+		key = generateKey(minLength, charset)
 		exists, err = db.Exists(ctx, key)
 		if err != nil {
 			return "", err
+		}
+		currentAttemptsCountdown--
+
+		if currentAttemptsCountdown < 1 {
+			minLength++
+			currentAttemptsCountdown = attemptsToIncreaseMinLength
 		}
 	}
 
 	return key, nil
 }
 
-func generateKey(length int) string {
+func generateKey(length int, charset string) string {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	chars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	result := make([]byte, length)
+	charsetLen := len(charset)
+
 	for i := range length {
-		result[i] = chars[r.Intn(len(chars))]
+		result[i] = charset[r.Intn(charsetLen)]
 	}
 
 	return string(result)
