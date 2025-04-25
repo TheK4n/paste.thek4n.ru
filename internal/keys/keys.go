@@ -10,6 +10,7 @@ import (
 )
 
 const ATTEMPTS_TO_INCREASE_KEY_MIN_LENGHT = 20
+const MAX_KEY_LENGTH = 20
 const CHARSET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 
@@ -31,7 +32,7 @@ func Cache(db storage.RedisDB, timeout time.Duration, ttl time.Duration, length 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	uniqKey, err := generateUniqKey(ctx, db, length, ATTEMPTS_TO_INCREASE_KEY_MIN_LENGHT, CHARSET)
+	uniqKey, err := generateUniqKey(ctx, db, length, MAX_KEY_LENGTH, ATTEMPTS_TO_INCREASE_KEY_MIN_LENGHT, CHARSET)
 	if err != nil {
 		return "", fmt.Errorf("Error on generating unique key: %w", err)
 	}
@@ -46,7 +47,13 @@ func Cache(db storage.RedisDB, timeout time.Duration, ttl time.Duration, length 
 
 // Generates unique key with minimum lenght of minLength using charset
 // increases minLength if was attemptsToIncreaseMinLength attempts generate unique key
-func generateUniqKey(ctx context.Context, db storage.RedisDB, minLength int, attemptsToIncreaseMinLength int, charset string) (string, error) {
+// Return error if database error or context done or maxLength reached
+func generateUniqKey(
+	ctx context.Context, db storage.RedisDB,
+	minLength int, maxLength int,
+	attemptsToIncreaseMinLength int,
+	charset string,
+) (string, error) {
 	key := generateKey(minLength, charset)
 	exists, err := db.Exists(ctx, key)
 	if err != nil {
@@ -71,6 +78,10 @@ func generateUniqKey(ctx context.Context, db storage.RedisDB, minLength int, att
 		if currentAttemptsCountdown < 1 {
 			minLength++
 			currentAttemptsCountdown = attemptsToIncreaseMinLength
+		}
+
+		if minLength > maxLength {
+			return "", fmt.Errorf("Max key length reached")
 		}
 	}
 
