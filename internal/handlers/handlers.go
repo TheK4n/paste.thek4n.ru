@@ -22,8 +22,7 @@ const ONE_MEBIBYTE = 1048576
 const SECONDS_IN_MONTH = 60 * 60 * 24 * 30
 const DEFAULT_TTL_SECONDS = time.Second * SECONDS_IN_MONTH
 
-const SECONDS_IN_MINUTE = 60
-const MIN_TTL = time.Second * SECONDS_IN_MINUTE
+const MIN_TTL = time.Second * 0
 
 const SECONDS_IN_YEAR = 60 * 60 * 24 * 30 * 12
 const MAX_TTL = time.Second * SECONDS_IN_YEAR
@@ -93,7 +92,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		authorized = app.validateApikey(apikey)
 	}
 
-	ttl, errGetTTL := getTTL(r, authorized)
+	ttl, errGetTTL := getTTL(r)
 	if errGetTTL != nil {
 		log.Printf(
 			"Error on parsing ttl: %s. Response to client %s with code %d",
@@ -102,10 +101,21 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 			http.StatusUnprocessableEntity,
 		)
 		w.WriteHeader(http.StatusUnprocessableEntity)
+		fmt.Fprint(w, "Invalid 'ttl' parameter")
 		return
 	}
 
-	length, errGetLength := getLength(r, authorized)
+	if ttl == time.Duration(0) {
+		if !authorized {
+			log.Printf(
+				"Unathorized attempt to set persist key",
+			)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+	}
+
+	length, errGetLength := getLength(r)
 	if errGetLength != nil {
 		log.Printf(
 			"Error on parsing length: %s. Response to client %s with code %d",
@@ -114,7 +124,19 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 			http.StatusUnprocessableEntity,
 		)
 		w.WriteHeader(http.StatusUnprocessableEntity)
+		fmt.Fprint(w, "Invalid 'len' parameter")
 		return
+	}
+
+	if length < UNPRIVELEGED_MIN_KEY_LENGTH {
+		if !authorized {
+			log.Printf(
+				"Unathorized attempt to set short key with length %d",
+				length,
+			)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
 	}
 
 	disposable, errGetDisposable := getDisposable(r)
@@ -126,6 +148,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 			http.StatusUnprocessableEntity,
 		)
 		w.WriteHeader(http.StatusUnprocessableEntity)
+		fmt.Fprint(w, "Invalid 'disposable' parameter")
 		return
 	}
 
@@ -138,6 +161,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 			http.StatusUnprocessableEntity,
 		)
 		w.WriteHeader(http.StatusUnprocessableEntity)
+		fmt.Fprint(w, "Invalid 'url' parameter")
 		return
 	}
 
@@ -168,6 +192,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 				http.StatusUnprocessableEntity,
 			)
 			w.WriteHeader(http.StatusUnprocessableEntity)
+			fmt.Fprint(w, "Invalid 'url' parameter")
 			return
 		}
 	}
@@ -265,7 +290,7 @@ func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
 		if err == storage.ErrKeyNotFound || errors.Unwrap(err) == storage.ErrKeyNotFound {
 			w.WriteHeader(http.StatusNotFound)
 
-			_, writeErr := w.Write([]byte("404 Not Found"))
+			_, writeErr := fmt.Fprint(w, "404 Not Found")
 			if writeErr != nil {
 				log.Printf("Error on answer: %s, suffered user %s", writeErr.Error(), r.RemoteAddr)
 				w.WriteHeader(http.StatusInternalServerError)
@@ -298,7 +323,7 @@ func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Get clicks by key '%s' from %s", key, r.RemoteAddr)
 }
 
-func getTTL(r *http.Request, authorized bool) (time.Duration, error) {
+func getTTL(r *http.Request) (time.Duration, error) {
 	ttlQuery := r.URL.Query().Get("ttl")
 
 	if ttlQuery == "" {
@@ -308,13 +333,6 @@ func getTTL(r *http.Request, authorized bool) (time.Duration, error) {
 	ttl, err := time.ParseDuration(ttlQuery)
 	if err != nil {
 		return 0, err
-	}
-
-	if ttl == time.Duration(0) {
-		if authorized {
-			return ttl, nil
-		}
-		return 0, fmt.Errorf("TTL can`t be less then %s", MIN_TTL)
 	}
 
 	if ttl < MIN_TTL {
@@ -351,7 +369,7 @@ func getDisposable(r *http.Request) (int, error) {
 	return disposable, nil
 }
 
-func getLength(r *http.Request, authorized bool) (int, error) {
+func getLength(r *http.Request) (int, error) {
 	lengthQuery := r.URL.Query().Get("len")
 
 	if lengthQuery == "" {
@@ -363,14 +381,8 @@ func getLength(r *http.Request, authorized bool) (int, error) {
 		return 0, err
 	}
 
-	if length < UNPRIVELEGED_MIN_KEY_LENGTH {
-		if length < PRIVELEGED_MIN_KEY_LENGTH {
-			return 0, fmt.Errorf("Priveleged length can`t be less then %d", PRIVELEGED_MIN_KEY_LENGTH)
-		}
-		if authorized {
-			return length, nil
-		}
-		return 0, fmt.Errorf("Length can`t be less then %d", UNPRIVELEGED_MIN_KEY_LENGTH)
+	if length < PRIVELEGED_MIN_KEY_LENGTH {
+		return 0, fmt.Errorf("Length can`t be less then %d", PRIVELEGED_MIN_KEY_LENGTH)
 	}
 
 	if length > MAX_KEY_LENGTH {
