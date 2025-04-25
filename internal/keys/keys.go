@@ -2,6 +2,7 @@ package keys
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"time"
@@ -12,6 +13,10 @@ import (
 const ATTEMPTS_TO_INCREASE_KEY_MIN_LENGHT = 20
 const MAX_KEY_LENGTH = 20
 const CHARSET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+var (
+	ErrKeyAlreadyTaken = errors.New("Key already taken")
+)
 
 func Get(db storage.KeysDB, key string, timeout time.Duration) (storage.KeyRecordAnswer, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -27,13 +32,28 @@ func GetClicks(db storage.KeysDB, key string, timeout time.Duration) (int, error
 	return db.GetClicks(ctx, key)
 }
 
-func Cache(db storage.KeysDB, timeout time.Duration, ttl time.Duration, length int, record storage.KeyRecord) (string, error) {
+func Cache(db storage.KeysDB, timeout time.Duration, requestedKey string, ttl time.Duration, length int, record storage.KeyRecord) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	uniqKey, err := generateUniqKey(ctx, db, length, MAX_KEY_LENGTH, ATTEMPTS_TO_INCREASE_KEY_MIN_LENGHT, CHARSET)
-	if err != nil {
-		return "", fmt.Errorf("Error on generating unique key: %w", err)
+	var uniqKey string
+	var err error
+	if requestedKey != "" {
+		exists, err := db.Exists(context.Background(), requestedKey)
+		if err != nil {
+			return "", fmt.Errorf("Error on checking key: %w", err)
+		}
+
+		if !exists {
+			uniqKey = requestedKey
+		} else {
+			return "", ErrKeyAlreadyTaken
+		}
+	} else {
+		uniqKey, err = generateUniqKey(ctx, db, length, MAX_KEY_LENGTH, ATTEMPTS_TO_INCREASE_KEY_MIN_LENGHT, CHARSET)
+		if err != nil {
+			return "", fmt.Errorf("Error on generating unique key: %w", err)
+		}
 	}
 
 	err = db.Set(ctx, uniqKey, ttl, record)

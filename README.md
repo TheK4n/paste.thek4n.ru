@@ -101,6 +101,12 @@ curl -d 'https://example.com/' 'localhost:8081/?url=true&len=3&apikey=apikey'
 # http://localhost:8081/Dav/
 ```
 
+Authorized apikeys can request custom key
+```sh
+curl -d 'https://example.com/' 'localhost:8081/?url=true&key=hello&apikey=apikey'
+# http://localhost:8081/hello/
+```
+
 
 ### APIKEYS
 

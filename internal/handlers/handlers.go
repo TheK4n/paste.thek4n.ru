@@ -18,6 +18,7 @@ import (
 )
 
 const ONE_MEBIBYTE = 1048576
+const MAX_BODY_SIZE = ONE_MEBIBYTE
 
 const SECONDS_IN_MONTH = 60 * 60 * 24 * 30
 const DEFAULT_TTL_SECONDS = time.Second * SECONDS_IN_MONTH
@@ -165,8 +166,32 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.ContentLength > ONE_MEBIBYTE {
+	requestedKey, errGetRequestedKey := getRequestedKey(r)
+	if errGetRequestedKey != nil {
+		log.Printf(
+			"Error on validating 'key' argument: %s. Response to client %s with code %d",
+			errGetRequestedKey.Error(),
+			r.RemoteAddr,
+			http.StatusUnprocessableEntity,
+		)
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		fmt.Fprint(w, errGetRequestedKey.Error())
+		return
+	}
+
+	if !authorized {
+		if requestedKey != "" {
+			log.Printf(
+				"Unathorized attempt to set custom key",
+			)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+	}
+
+	if r.ContentLength > MAX_BODY_SIZE {
 		w.WriteHeader(http.StatusRequestEntityTooLarge)
+		fmt.Fprintf(w, "Body too large. Maximum is %d bytes", MAX_BODY_SIZE)
 		return
 	}
 
@@ -204,8 +229,15 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	record.URL = isUrl
 	record.Clicks = 0
 
-	key, err := keys.Cache(app.DB, 4*time.Second, ttl, length, record)
+	key, err := keys.Cache(app.DB, 4*time.Second, requestedKey, ttl, length, record)
 	if err != nil {
+		if err == keys.ErrKeyAlreadyTaken || errors.Unwrap(err) == keys.ErrKeyAlreadyTaken {
+			log.Printf("Try to take already taken key from %s: Error: %s", r.RemoteAddr, err)
+			w.WriteHeader(http.StatusConflict)
+			fmt.Fprint(w, "Key already taken")
+			return
+		}
+
 		log.Printf("Error on setting key: %s, suffered user %s", err, r.RemoteAddr)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -344,6 +376,30 @@ func getTTL(r *http.Request) (time.Duration, error) {
 	}
 
 	return ttl, nil
+}
+
+func getRequestedKey(r *http.Request) (string, error) {
+	requestedKey := r.URL.Query().Get("key")
+
+	if requestedKey == "" {
+		return "", nil
+	}
+
+	if len(requestedKey) > MAX_KEY_LENGTH {
+		return "", fmt.Errorf("%s", "Requested key length more then max")
+	}
+
+	if len(requestedKey) < PRIVELEGED_MIN_KEY_LENGTH {
+		return "", fmt.Errorf("%s", "Requested key length less then min")
+	}
+
+	for _, char := range requestedKey {
+		if !strings.ContainsRune(keys.CHARSET, char) {
+			return "", fmt.Errorf("%s", "Requested key contains illegal char")
+		}
+	}
+
+	return requestedKey, nil
 }
 
 func getDisposable(r *http.Request) (int, error) {
