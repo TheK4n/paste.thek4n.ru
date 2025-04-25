@@ -102,8 +102,17 @@ curl -d 'https://example.com/' 'localhost:8081/?url=true&len=3&apikey=apikey'
 ```
 
 
-TODO:
-* [ ] API for register api keys
+### APIKEYS
+
+Generate new api key:
+```sh
+export REDIS_HOST=localhost  # Host of redis db or container
+./apikeys gen                # generate and add new api key
+./apikeys list               # list of api keys
+./apikeys revoke "key"       # revoke (invalidate) api key
+./apikeys reauthorize "key"  # reauthorize api key
+./apikeys rm "key"           # remove api key
+```
 
 
 <h1 align="center"><a href="#top">▲</a></h1>
