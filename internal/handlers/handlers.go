@@ -87,7 +87,13 @@ func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
-	ttl, errGetTTL := app.getTTL(r)
+	authorized := false
+	apikey := r.URL.Query().Get("apikey")
+	if apikey != "" {
+		authorized = app.validateApikey(apikey)
+	}
+
+	ttl, errGetTTL := getTTL(r, authorized)
 	if errGetTTL != nil {
 		log.Printf(
 			"Error on parsing ttl: %s. Response to client %s with code %d",
@@ -99,7 +105,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	length, errGetLength := app.getLength(r)
+	length, errGetLength := getLength(r, authorized)
 	if errGetLength != nil {
 		log.Printf(
 			"Error on parsing length: %s. Response to client %s with code %d",
@@ -292,7 +298,7 @@ func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Get clicks by key '%s' from %s", key, r.RemoteAddr)
 }
 
-func (app *Application) getTTL(r *http.Request) (time.Duration, error) {
+func getTTL(r *http.Request, authorized bool) (time.Duration, error) {
 	ttlQuery := r.URL.Query().Get("ttl")
 
 	if ttlQuery == "" {
@@ -305,8 +311,7 @@ func (app *Application) getTTL(r *http.Request) (time.Duration, error) {
 	}
 
 	if ttl == time.Duration(0) {
-		apiKey := r.URL.Query().Get("apikey")
-		if app.validateApikey(apiKey) {
+		if authorized {
 			return ttl, nil
 		}
 		return 0, fmt.Errorf("TTL can`t be less then %s", MIN_TTL)
@@ -346,7 +351,7 @@ func getDisposable(r *http.Request) (int, error) {
 	return disposable, nil
 }
 
-func (app *Application) getLength(r *http.Request) (int, error) {
+func getLength(r *http.Request, authorized bool) (int, error) {
 	lengthQuery := r.URL.Query().Get("len")
 
 	if lengthQuery == "" {
@@ -362,8 +367,7 @@ func (app *Application) getLength(r *http.Request) (int, error) {
 		if length < PRIVELEGED_MIN_KEY_LENGTH {
 			return 0, fmt.Errorf("Priveleged length can`t be less then %d", PRIVELEGED_MIN_KEY_LENGTH)
 		}
-		apiKey := r.URL.Query().Get("apikey")
-		if app.validateApikey(apiKey) {
+		if authorized {
 			return length, nil
 		}
 		return 0, fmt.Errorf("Length can`t be less then %d", UNPRIVELEGED_MIN_KEY_LENGTH)
