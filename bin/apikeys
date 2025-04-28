@@ -31,17 +31,17 @@ exists() {
 cmd_reauthorize_key() {
     if exists "${1}"; then
         redis HSET "${1:?Key not set}" valid true
-        exit 0
+        return 0
     fi
-    exit 1
+    return 1
 }
 
 cmd_revoke_key() {
     if exists "${1}"; then
         redis HSET "${1:?Key not set}" valid false
-        exit 0
+        return 0
     fi
-    exit 1
+    return 1
 }
 
 cmd_remove_key() {
