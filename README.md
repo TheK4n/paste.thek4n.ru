@@ -107,6 +107,10 @@ curl -d 'https://example.com/' 'localhost:8081/?url=true&key=hello&apikey=apikey
 # http://localhost:8081/hello/
 ```
 
+---
+
+Non authorized has quota 50 post requests in 24 hours
+
 
 ### APIKEYS
 
