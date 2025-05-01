@@ -53,10 +53,17 @@ func runServer(opts *Options) {
 		return
 	}
 
+	quotaDb, err := storage.InitQuotaStorageDB(opts.DBHost, opts.DBPort)
+	if err != nil {
+		log.Fatalf("failed to connect to database server: %s\n", err.Error())
+		return
+	}
+
 	handlers := handlers.Application{
 		Version:   VERSION,
 		DB:        *db,
 		ApiKeysDB: *apikeysDb,
+		QuotaDB:   *quotaDb,
 	}
 
 	mux := http.NewServeMux()

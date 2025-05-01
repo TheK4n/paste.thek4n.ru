@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -46,6 +47,7 @@ type Application struct {
 	Version   string
 	DB        storage.KeysDB
 	ApiKeysDB storage.APIKeysDB
+	QuotaDB   storage.QuotaDB
 }
 
 type HealthcheckResponse struct {
@@ -91,6 +93,39 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	apikey := r.URL.Query().Get("apikey")
 	if apikey != "" {
 		authorized = app.validateApikey(apikey)
+	}
+
+	if !authorized {
+		ip := getClientIP(r)
+		quotaValid, err := app.QuotaDB.IsQuotaValid(context.Background(), ip)
+		if err != nil {
+			log.Printf(
+				"Error on checking quota: %s. Response to client %s with code %d",
+				err.Error(),
+				r.RemoteAddr,
+				http.StatusInternalServerError,
+			)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if !quotaValid {
+			w.WriteHeader(http.StatusUnauthorized)
+			fmt.Fprint(w, "Your quota for today is exhausted.")
+			return
+		}
+
+		err = app.QuotaDB.CreateAndSubOrJustSub(context.Background(), ip)
+		if err != nil {
+			log.Printf(
+				"Error on sub quota: %s. Response to client %s with code %d",
+				err.Error(),
+				r.RemoteAddr,
+				http.StatusInternalServerError,
+			)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
 	}
 
 	ttl, errGetTTL := getTTL(r)
@@ -486,4 +521,23 @@ func (app *Application) validateApikey(str string) bool {
 	}
 
 	return record.Valid
+}
+
+func getClientIP(r *http.Request) string {
+	ip := r.Header.Get("X-Forwarded-For")
+	if ip != "" {
+		ips := strings.Split(ip, ",")
+		return strings.TrimSpace(ips[0])
+	}
+
+	ip = r.Header.Get("X-Real-IP")
+	if ip != "" {
+		return ip
+	}
+
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return ip
 }
