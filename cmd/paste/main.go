@@ -12,7 +12,7 @@ import (
 	flags "github.com/jessevdk/go-flags"
 )
 
-const VERSION = "1.0.0"
+const VERSION = "1.2.0"
 
 type Options struct {
 	Port   int    `short:"p" long:"port" default:"80" description:"Port to listen"`
