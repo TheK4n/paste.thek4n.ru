@@ -1,15 +1,20 @@
 package storage
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 )
+
+const COMPRESS_THRESHOLD = 2048
 
 var (
 	ErrKeyNotFound = errors.New("Key not found in db")
@@ -81,6 +86,15 @@ func (db *KeysDB) Get(ctx context.Context, key string) (KeyRecordAnswer, error) 
 		}
 	}
 
+	if isCompressed(record.Body) {
+		decompressedBody, err := decompress(record.Body)
+		if err != nil {
+			return answer, err
+		}
+
+		record.Body = decompressedBody
+	}
+
 	answer.Body = record.Body
 	answer.URL = record.URL
 
@@ -106,6 +120,15 @@ func (db *KeysDB) GetClicks(ctx context.Context, key string) (int, error) {
 }
 
 func (db *KeysDB) Set(ctx context.Context, key string, ttl time.Duration, record KeyRecord) error {
+	if len(record.Body) > COMPRESS_THRESHOLD {
+		compressedBody, err := compress(record.Body)
+		if err != nil {
+			return fmt.Errorf("failed to compress: %w", err)
+		}
+
+		record.Body = compressedBody
+	}
+
 	err := db.Client.HSet(ctx, key, record).Err()
 	if err != nil {
 		return err
@@ -140,4 +163,53 @@ func InitKeysStorageDB(dbHost string, dbPort int) (*KeysDB, error) {
 	log.Printf("Connected to database 0 (keys) on %s:%d\n", dbHost, dbPort)
 
 	return &KeysDB{Client: client}, nil
+}
+
+// compress сжимает данные из слайса байт с использованием gzip по чанкам
+func compress(data []byte) ([]byte, error) {
+	chunkSize := 2048
+	buf := bytes.NewBuffer(make([]byte, 0, len(data)))
+
+	gz, err := gzip.NewWriterLevel(buf, gzip.DefaultCompression)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gzip writer: %w", err)
+	}
+	defer gz.Close()
+
+	for offset := 0; offset < len(data); offset += chunkSize {
+		end := min(offset+chunkSize, len(data))
+
+		if _, err := gz.Write(data[offset:end]); err != nil {
+			return nil, fmt.Errorf("failed to write chunk: %w", err)
+		}
+
+		if err := gz.Flush(); err != nil {
+			return nil, fmt.Errorf("failed to flush: %w", err)
+		}
+	}
+
+	if err := gz.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close gzip writer: %w", err)
+	}
+
+	return buf.Bytes(), nil
+}
+
+func decompress(data []byte) ([]byte, error) {
+	gz, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gz.Close()
+
+	uncompressed, err := io.ReadAll(gz)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decompress data: %w", err)
+	}
+
+	return uncompressed, nil
+}
+
+func isCompressed(data []byte) bool {
+	return len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b
 }
