@@ -19,7 +19,8 @@ import (
 )
 
 const ONE_MEBIBYTE = 1048576
-const MAX_BODY_SIZE = ONE_MEBIBYTE
+const UNPREVELEGED_MAX_BODY_SIZE = ONE_MEBIBYTE
+const PREVELEGED_MAX_BODY_SIZE = ONE_MEBIBYTE * 100
 
 const SECONDS_IN_MONTH = 60 * 60 * 24 * 30
 const DEFAULT_TTL_SECONDS = time.Second * SECONDS_IN_MONTH
@@ -224,9 +225,17 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if r.ContentLength > MAX_BODY_SIZE {
+	if !authorized {
+		if r.ContentLength > UNPREVELEGED_MAX_BODY_SIZE {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			fmt.Fprintf(w, "Body too large. Maximum is %d bytes", UNPREVELEGED_MAX_BODY_SIZE)
+			return
+		}
+	}
+
+	if r.ContentLength > PREVELEGED_MAX_BODY_SIZE {
 		w.WriteHeader(http.StatusRequestEntityTooLarge)
-		fmt.Fprintf(w, "Body too large. Maximum is %d bytes", MAX_BODY_SIZE)
+		fmt.Fprintf(w, "Body too large. Maximum is %d bytes", PREVELEGED_MAX_BODY_SIZE)
 		return
 	}
 
