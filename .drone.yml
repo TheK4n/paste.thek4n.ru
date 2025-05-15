@@ -1,0 +1,35 @@
+kind: pipeline
+type: docker
+name: docker-compose-deploy
+
+steps:
+  - name: build
+    image: docker:20.10
+    commands:
+      - docker-compose build
+    volumes:
+      - name: docker-sock
+        path: /var/run/docker.sock
+    when:
+      event: push
+      branch: master
+  - name: prod
+    image: alpine
+    environment:
+      SSH_KEY:
+        from_secret: ssh_key
+    commands:
+      - apk add openssh
+      - mkdir -p ~/.ssh
+      - echo "$SSH_KEY" > ~/.ssh/id_rsa
+      - chmod 600 ~/.ssh/id_rsa
+      - ssh -o StrictHostKeyChecking=no thek4n@192.168.50.5 "cd ~/projects/paste.thek4n.name && git checkout deploy && git pull --rebase localorigin master && docker compose up -d --build"
+    when:
+      event: push
+      branch: master
+
+
+volumes:
+  - name: docker-sock
+    host:
+      path: /var/run/docker.sock
