@@ -291,9 +291,9 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
-	scheme := detectScheme(r)
+	proto := detectProto(r)
 
-	_, answerErr := fmt.Fprintf(w, "%s%s/%s/", scheme, r.Host, key)
+	_, answerErr := fmt.Fprintf(w, "%s://%s/%s/", proto, r.Host, key)
 	if answerErr != nil {
 		log.Printf("Error on answer: %s", answerErr.Error())
 		w.WriteHeader(http.StatusInternalServerError)
@@ -510,12 +510,17 @@ func getURL(r *http.Request) (bool, error) {
 	return false, fmt.Errorf("URL argument can be only 'true' or 'false'")
 }
 
-func detectScheme(r *http.Request) string {
-	if r.TLS == nil {
-		return "http://"
-	} else {
-		return "https://"
+func detectProto(r *http.Request) string {
+	if r.TLS != nil {
+		return "https"
 	}
+
+	proto := r.Header.Get("X-Forwarded-Proto")
+	if proto != "" {
+		return proto
+	}
+
+	return "http"
 }
 
 func validateUrl(str string) bool {
