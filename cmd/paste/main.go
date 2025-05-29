@@ -33,7 +33,6 @@ func main() {
 	runServer(&opts)
 }
 
-
 func runServer(opts *Options) {
 	log.Println("Connecting to database...")
 

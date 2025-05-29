@@ -307,7 +307,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Set key '%s' size=%d ttl=%s countdown=%d url=%t", key, len(body), ttl, disposable, isUrl)
+	log.Printf("Set key '%s' size=%d ttl=%s countdown=%d url=%t from %s", key, len(body), ttl, disposable, isUrl, remoteAddr)
 }
 
 func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
