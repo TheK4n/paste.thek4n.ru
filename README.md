@@ -62,6 +62,7 @@ Put disposable text
 URL="$(curl -d 'Hello' 'localhost:8081/?disposable=1')"
 curl -i "${URL}"  # Hello
 curl -i "${URL}"  # 404 Not Found
+```
 
 ```sh
 URL="$(curl -d 'Hello' 'localhost:8081/?disposable=2')"
