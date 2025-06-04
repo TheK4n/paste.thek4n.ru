@@ -1,5 +1,6 @@
 import type { Component } from 'solid-js';
 import { createSignal, createResource, Match, Switch } from 'solid-js';
+import { CustomAlert } from "./CustomAlert";
 
 async function shortenUrl(url: string, disposable: number, ttl: string): Promise<string> {
   if (disposable > 255) {
@@ -26,17 +27,24 @@ async function shortenUrl(url: string, disposable: number, ttl: string): Promise
   return await response.text();
 }
 
-function copyToClipboard(text: string) {
-  navigator.clipboard.writeText(text).then(() => {
-    alert("Copied");
-  });
-}
 
 const App: Component = () => {
   const [disposableCounter, setDisposableCounter] = createSignal<number>(0);
   const [expirationTime, setExpirationTime] = createSignal<string>("");
   const [url, setURL] = createSignal<string>("");
   const [openAccordion, setOpenAccordion] = createSignal<string | null>(null);
+
+  const [isAlertVisible, setIsAlertVisible] = createSignal(false);
+  const [alertMessage, setAlertMessage] = createSignal("");
+
+  function copyToClipboard(text: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setAlertMessage("Copied to clipboard!");
+        setIsAlertVisible(true);
+        setTimeout(() => setIsAlertVisible(false), 3000); // Автозакрытие через 3 сек
+    });
+  }
+
 
   const toggleAccordion = (id: string) => {
     setOpenAccordion(openAccordion() === id ? null : id);
@@ -133,7 +141,7 @@ const App: Component = () => {
             </Match>
             <Match when={shortenedURL()}>
               <div class="mt-10">
-                <div class="flex text-white items-center border border-gray-700 rounded-lg overflow-hidden">
+                <div class="flex flex-col sm:flex-row text-white items-stretch border border-gray-700 rounded-lg overflow-hidden">
                   <input
                     type="text"
                     value={shortenedURL()}
@@ -141,7 +149,7 @@ const App: Component = () => {
                     class="flex-grow px-4 py-2 outline-none bg-gray-800"
                   />
                   <button
-                    class="bg-blue-500 text-white px-4 py-2 hover:bg-blue-600 transition-colors"
+                    class="w-full sm:w-auto bg-blue-500 text-white px-4 py-2 hover:bg-blue-600 transition-colors"
                     onclick={() => copyToClipboard(shortenedURL()!)}
                   >
                     Copy
@@ -226,6 +234,12 @@ const App: Component = () => {
           </div>
         </div>
       </footer>
+
+  <CustomAlert
+        message={alertMessage()}
+        isVisible={isAlertVisible()}
+        onClose={() => setIsAlertVisible(false)}
+      />
     </div>
   );
 };
