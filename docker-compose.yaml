@@ -31,6 +31,10 @@ services:
 
     restart: unless-stopped
 
+    volumes:
+      - "/etc/timezone:/etc/timezone:ro"
+      - "/etc/localtime:/etc/localtime:ro"
+
     healthcheck:
       test: ["CMD", "/app/ping", "--method", "json", "http://localhost:80/health"]
       interval: 1m30s
@@ -47,6 +51,8 @@ services:
     restart: unless-stopped
     volumes:
       - paste:/data
+      - "/etc/timezone:/etc/timezone:ro"
+      - "/etc/localtime:/etc/localtime:ro"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 1m30s
