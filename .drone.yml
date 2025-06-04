@@ -10,6 +10,15 @@ steps:
     when:
       branch: master
 
+  - name: test
+    image: golang:1.23
+    commands:
+      - go fmt ./...
+      - git diff --exit-code
+      - go vet ./...
+    when:
+      branch: master
+
   - name: prod
     image: alpine
     environment:
