@@ -3,6 +3,13 @@ type: docker
 name: docker-compose-deploy
 
 steps:
+  - name: build
+    image: golang:1.23
+    commands:
+      - go build -v ./...
+    when:
+      branch: master
+
   - name: prod
     image: alpine
     environment:
