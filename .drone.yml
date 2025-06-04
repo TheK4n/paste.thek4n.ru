@@ -10,12 +10,21 @@ steps:
     when:
       branch: master
 
-  - name: test
+  - name: check-fmt
     image: golang:1.23
     commands:
       - go fmt ./...
       - git diff --exit-code
       - go vet ./...
+    when:
+      branch: master
+
+  - name: test
+    image: golang:1.23
+    environment:
+      REDIS_HOST: redis-test
+    commands:
+      - go test -race -cover ./...
     when:
       branch: master
 
@@ -33,3 +42,9 @@ steps:
     when:
       event: push
       branch: master
+
+services:
+  - name: redis-test
+    image: redis
+    ports:
+      - 6379
