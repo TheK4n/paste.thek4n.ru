@@ -15,7 +15,7 @@ const MAX_KEY_LENGTH = 20
 const CHARSET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 var (
-	ErrKeyAlreadyTaken = errors.New("Key already taken")
+	ErrKeyAlreadyTaken = errors.New("key already taken")
 )
 
 func Get(db storage.KeysDB, key string, timeout time.Duration) (storage.KeyRecordAnswer, error) {
@@ -41,7 +41,7 @@ func Cache(db storage.KeysDB, timeout time.Duration, requestedKey string, ttl ti
 	if requestedKey != "" {
 		exists, err := db.Exists(context.Background(), requestedKey)
 		if err != nil {
-			return "", fmt.Errorf("Error on checking key: %w", err)
+			return "", fmt.Errorf("error on checking key: %w", err)
 		}
 
 		if !exists {
@@ -52,13 +52,13 @@ func Cache(db storage.KeysDB, timeout time.Duration, requestedKey string, ttl ti
 	} else {
 		uniqKey, err = generateUniqKey(ctx, db, length, MAX_KEY_LENGTH, ATTEMPTS_TO_INCREASE_KEY_MIN_LENGHT, CHARSET)
 		if err != nil {
-			return "", fmt.Errorf("Error on generating unique key: %w", err)
+			return "", fmt.Errorf("error on generating unique key: %w", err)
 		}
 	}
 
 	err = db.Set(ctx, uniqKey, ttl, record)
 	if err != nil {
-		return "", fmt.Errorf("Error on setting key '%s' in db: %w", uniqKey, err)
+		return "", fmt.Errorf("error on setting key '%s' in db: %w", uniqKey, err)
 	}
 
 	return uniqKey, nil
@@ -83,7 +83,7 @@ func generateUniqKey(
 	for exists {
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("Timeout")
+			return "", fmt.Errorf("timeout")
 		default:
 		}
 
@@ -100,7 +100,7 @@ func generateUniqKey(
 		}
 
 		if minLength > maxLength {
-			return "", fmt.Errorf("Max key length reached")
+			return "", fmt.Errorf("max key length reached")
 		}
 	}
 

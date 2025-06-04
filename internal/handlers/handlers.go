@@ -78,6 +78,11 @@ func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	answer, err := json.Marshal(resp)
+	if err != nil {
+		log.Printf("Error on answer healthcheck: %s, suffered user %s", err.Error(), remoteAddr)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
@@ -112,7 +117,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		}
 		if !quotaValid {
 			w.WriteHeader(http.StatusUnauthorized)
-			fmt.Fprint(w, "Your quota for today is exhausted.")
+			_, _ = fmt.Fprint(w, "Your quota for today is exhausted.")
 			return
 		}
 
@@ -145,7 +150,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 			http.StatusUnprocessableEntity,
 		)
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		fmt.Fprint(w, "Invalid 'ttl' parameter")
+		_, _ = fmt.Fprint(w, "Invalid 'ttl' parameter")
 		return
 	}
 
@@ -168,7 +173,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 			http.StatusUnprocessableEntity,
 		)
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		fmt.Fprint(w, "Invalid 'len' parameter")
+		_, _ = fmt.Fprint(w, "Invalid 'len' parameter")
 		return
 	}
 
@@ -192,7 +197,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 			http.StatusUnprocessableEntity,
 		)
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		fmt.Fprint(w, "Invalid 'disposable' parameter")
+		_, _ = fmt.Fprint(w, "Invalid 'disposable' parameter")
 		return
 	}
 
@@ -205,7 +210,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 			http.StatusUnprocessableEntity,
 		)
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		fmt.Fprint(w, "Invalid 'url' parameter")
+		_, _ = fmt.Fprint(w, "Invalid 'url' parameter")
 		return
 	}
 
@@ -218,7 +223,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 			http.StatusUnprocessableEntity,
 		)
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		fmt.Fprint(w, errGetRequestedKey.Error())
+		_, _ = fmt.Fprint(w, errGetRequestedKey.Error())
 		return
 	}
 
@@ -235,14 +240,14 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	if !authorized {
 		if r.ContentLength > UNPREVELEGED_MAX_BODY_SIZE {
 			w.WriteHeader(http.StatusRequestEntityTooLarge)
-			fmt.Fprintf(w, "Body too large. Maximum is %d bytes", UNPREVELEGED_MAX_BODY_SIZE)
+			_, _ = fmt.Fprintf(w, "Body too large. Maximum is %d bytes", UNPREVELEGED_MAX_BODY_SIZE)
 			return
 		}
 	}
 
 	if r.ContentLength > PREVELEGED_MAX_BODY_SIZE {
 		w.WriteHeader(http.StatusRequestEntityTooLarge)
-		fmt.Fprintf(w, "Body too large. Maximum is %d bytes", PREVELEGED_MAX_BODY_SIZE)
+		_, _ = fmt.Fprintf(w, "Body too large. Maximum is %d bytes", PREVELEGED_MAX_BODY_SIZE)
 		return
 	}
 
@@ -268,7 +273,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 				http.StatusUnprocessableEntity,
 			)
 			w.WriteHeader(http.StatusUnprocessableEntity)
-			fmt.Fprint(w, "Invalid 'url' parameter")
+			_, _ = fmt.Fprint(w, "Invalid 'url' parameter")
 			return
 		}
 	}
@@ -285,7 +290,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		if err == keys.ErrKeyAlreadyTaken || errors.Unwrap(err) == keys.ErrKeyAlreadyTaken {
 			log.Printf("Try to take already taken key from %s: Error: %s", remoteAddr, err)
 			w.WriteHeader(http.StatusConflict)
-			fmt.Fprint(w, "Key already taken")
+			_, _ = fmt.Fprint(w, "Key already taken")
 			return
 		}
 
@@ -343,7 +348,7 @@ func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 	if record.URL {
 		answer := make([]byte, 0)
 		answer = fmt.Appendf(answer, REDIRECT_BODY, string(record.Body))
-		w.Header().Set(http.CanonicalHeaderKey("content-type"), http.DetectContentType(answer))
+		w.Header().Set("content-type", http.DetectContentType(answer))
 		http.Redirect(w, r, strings.TrimSpace(string(record.Body)), http.StatusSeeOther)
 		_, writeErr := w.Write(answer)
 		if writeErr != nil {
@@ -355,7 +360,7 @@ func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set(http.CanonicalHeaderKey("content-type"), http.DetectContentType(record.Body))
+	w.Header().Set("content-type", http.DetectContentType(record.Body))
 	w.WriteHeader(http.StatusOK)
 	_, writeErr := w.Write(record.Body)
 	if writeErr != nil {
@@ -396,7 +401,7 @@ func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	body := []byte(strconv.Itoa(clicks))
-	w.Header().Set(http.CanonicalHeaderKey("content-type"), http.DetectContentType(body))
+	w.Header().Set("content-type", http.DetectContentType(body))
 	w.WriteHeader(http.StatusOK)
 
 	_, writeErr := w.Write(body)
@@ -439,16 +444,16 @@ func getRequestedKey(r *http.Request) (string, error) {
 	}
 
 	if len(requestedKey) > MAX_KEY_LENGTH {
-		return "", fmt.Errorf("%s", "Requested key length more then max")
+		return "", fmt.Errorf("requested key length more then max")
 	}
 
 	if len(requestedKey) < PRIVELEGED_MIN_KEY_LENGTH {
-		return "", fmt.Errorf("%s", "Requested key length less then min")
+		return "", fmt.Errorf("requested key length less then min")
 	}
 
 	for _, char := range requestedKey {
 		if !strings.ContainsRune(keys.CHARSET, char) {
-			return "", fmt.Errorf("%s", "Requested key contains illegal char")
+			return "", fmt.Errorf("requested key contains illegal char")
 		}
 	}
 
@@ -468,11 +473,11 @@ func getDisposable(r *http.Request) (int, error) {
 	}
 
 	if disposable < 0 {
-		return 0, fmt.Errorf("Disposable argument can`t be less then zero")
+		return 0, fmt.Errorf("disposable argument can`t be less then zero")
 	}
 
 	if disposable > 255 {
-		return 0, fmt.Errorf("Disposable argument can`t be more then 255")
+		return 0, fmt.Errorf("disposable argument can`t be more then 255")
 	}
 
 	return disposable, nil
@@ -491,11 +496,11 @@ func getLength(r *http.Request) (int, error) {
 	}
 
 	if length < PRIVELEGED_MIN_KEY_LENGTH {
-		return 0, fmt.Errorf("Length can`t be less then %d", PRIVELEGED_MIN_KEY_LENGTH)
+		return 0, fmt.Errorf("length can`t be less then %d", PRIVELEGED_MIN_KEY_LENGTH)
 	}
 
 	if length > MAX_KEY_LENGTH {
-		return 0, fmt.Errorf("Length can`t be more then %d", MAX_KEY_LENGTH)
+		return 0, fmt.Errorf("length can`t be more then %d", MAX_KEY_LENGTH)
 	}
 
 	return length, nil

@@ -19,6 +19,11 @@ steps:
     when:
       branch: master
 
+  - name: lint
+    image: golangci/golangci-lint:latest
+    commands:
+      - golangci-lint run --timeout 5m
+
   - name: test
     image: golang:1.23
     environment:

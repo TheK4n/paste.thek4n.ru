@@ -18,7 +18,7 @@ import (
 const COMPRESS_THRESHOLD_BYTES = 4096
 
 var (
-	ErrKeyNotFound = errors.New("Key not found in db")
+	ErrKeyNotFound = errors.New("key not found in db")
 )
 
 var bufferPool = sync.Pool{
@@ -185,12 +185,17 @@ func compress(data []byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decompress(data []byte) ([]byte, error) {
+func decompress(data []byte) (_ []byte, err error) {
 	gz, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 	}
-	defer gz.Close()
+	defer func() {
+		closeErr := gz.Close()
+		if err == nil { // Если основная функция еще не вернула ошибку
+			err = closeErr
+		}
+	}()
 
 	buf := bufferPool.Get().(*bytes.Buffer)
 	defer bufferPool.Put(buf)
