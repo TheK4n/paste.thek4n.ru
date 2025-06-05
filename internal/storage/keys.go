@@ -185,17 +185,11 @@ func compress(data []byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decompress(data []byte) (_ []byte, err error) {
+func decompress(data []byte) ([]byte, error) {
 	gz, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 	}
-	defer func() {
-		closeErr := gz.Close()
-		if err == nil { // Если основная функция еще не вернула ошибку
-			err = closeErr
-		}
-	}()
 
 	buf := bufferPool.Get().(*bytes.Buffer)
 	defer bufferPool.Put(buf)
@@ -204,6 +198,10 @@ func decompress(data []byte) (_ []byte, err error) {
 
 	if _, err := io.Copy(buf, gz); err != nil {
 		return nil, fmt.Errorf("failed to decompress data: %w", err)
+	}
+
+	if err := gz.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close gzip reader: %w", err)
 	}
 
 	return buf.Bytes(), nil
