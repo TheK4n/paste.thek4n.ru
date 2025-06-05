@@ -125,17 +125,26 @@ const App: Component = () => {
               />
             </div>
           </div>
-          <button
-            onclick={handleShorten}
-            class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm w-full sm:w-auto px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-          >
-            Shorten
-          </button>
+      <button
+        onclick={handleShorten}
+        disabled={shortenedURL.loading}
+        class="relative text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm w-full sm:w-auto px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800 disabled:opacity-75 disabled:cursor-not-allowed"
+      >
+        <span class={`inline-flex items-center ${shortenedURL.loading ? "opacity-0" : "opacity-100"}`}>
+          Shorten
+        </span>
+
+        {shortenedURL.loading && (
+          <span class="absolute inset-0 flex items-center justify-center">
+            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          </span>
+        )}
+      </button>
 
           <Switch>
-            <Match when={shortenedURL.loading}>
-              <div class="mt-10 text-white">Loading...</div>
-            </Match>
             <Match when={shortenedURL.error}>
               <div class="mt-10 text-red-500">Error: {shortenedURL.error.message}</div>
             </Match>
