@@ -8,12 +8,15 @@ steps:
     commands:
       - go build -v ./...
     when:
-      branch: master
+      branch: [master, release/*]
     volumes:
       - name: go-build-cache
         path: /root/.cache/go-build
       - name: go-mod-cache
         path: /go
+    environment:
+      CGO_ENABLED: 0
+      GOOS: linux
 
   - name: check-fmt
     image: golang:1.23
@@ -22,7 +25,7 @@ steps:
       - git diff --exit-code
       - go vet ./...
     when:
-      branch: master
+      branch: [master, release/*]
     depends_on:
       - build
     volumes:
@@ -34,21 +37,22 @@ steps:
   - name: lint
     image: golangci/golangci-lint:latest
     commands:
-      - golangci-lint run --timeout 5m
+      - golangci-lint -v run --timeout 5m
     when:
-      branch: master
+      branch: [master, release/*]
 
   - name: test
     image: golang:1.23
     environment:
       REDIS_HOST: redis-test
     commands:
-      - go test -race -cover ./...
+      - go test -race -cover -coverprofile=coverage.out -covermode=atomic ./...
+      - go tool cover -func=coverage.out
     depends_on:
       - build
       - redis-test
     when:
-      branch: master
+      branch: [master, release/*]
     volumes:
       - name: go-build-cache
         path: /root/.cache/go-build
@@ -61,7 +65,7 @@ steps:
       SSH_KEY:
         from_secret: ssh_key
     commands:
-      - apk add openssh
+      - apk add --no-cache openssh
       - mkdir -p ~/.ssh
       - echo "$SSH_KEY" > ~/.ssh/id_rsa
       - chmod 600 ~/.ssh/id_rsa
