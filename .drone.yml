@@ -9,6 +9,11 @@ steps:
       - go build -v ./...
     when:
       branch: master
+    volumes:
+      - name: go-build-cache
+        path: /root/.cache/go-build
+      - name: go-mod-cache
+        path: /go
 
   - name: check-fmt
     image: golang:1.23
@@ -18,11 +23,20 @@ steps:
       - go vet ./...
     when:
       branch: master
+    depends_on:
+      - build
+    volumes:
+      - name: go-build-cache
+        path: /root/.cache/go-build
+      - name: go-mod-cache
+        path: /go
 
   - name: lint
     image: golangci/golangci-lint:latest
     commands:
       - golangci-lint run --timeout 5m
+    when:
+      branch: master
 
   - name: test
     image: golang:1.23
@@ -30,8 +44,16 @@ steps:
       REDIS_HOST: redis-test
     commands:
       - go test -race -cover ./...
+    depends_on:
+      - build
+      - redis-test
     when:
       branch: master
+    volumes:
+      - name: go-build-cache
+        path: /root/.cache/go-build
+      - name: go-mod-cache
+        path: /go
 
   - name: prod
     image: alpine
@@ -44,12 +66,25 @@ steps:
       - echo "$SSH_KEY" > ~/.ssh/id_rsa
       - chmod 600 ~/.ssh/id_rsa
       - ssh -o StrictHostKeyChecking=no thek4n@192.168.50.5 "cd ~/services/paste.thek4n.name && git checkout deploy && git pull --rebase localorigin master && docker compose up -d --build"
+      - shred -zun 2 ~/.ssh/id_rsa
     when:
       event: push
-      branch: master
+      branch:
+        include: [release/*]
+    depends_on:
+      - build
+      - check-fmt
+      - lint
+      - test
 
 services:
   - name: redis-test
     image: redis
-    ports:
-      - 6379
+
+volumes:
+- name: go-build-cache
+  host:
+    path: /tmp/go-build-cache
+- name: go-mod-cache
+  host:
+    path: /tmp/go-mod-cache
