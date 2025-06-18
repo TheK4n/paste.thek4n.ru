@@ -10,10 +10,6 @@ import (
 	"github.com/thek4n/paste.thek4n.name/internal/config"
 )
 
-type QuotaRecord struct {
-	Countdown int `redis:"countdown"`
-}
-
 type QuotaDB struct {
 	Client *redis.Client
 }
@@ -25,17 +21,13 @@ func (db *QuotaDB) CreateAndSubOrJustSub(ctx context.Context, key string) error 
 	}
 
 	if !exists {
-		record := QuotaRecord{
-			Countdown: config.QUOTA,
-		}
-
-		// TODO: обернуть 2 нижележащие инструкции в транзакцию (мы не хотим, чтобы случайно забанился навечно айпишник)
-		err := db.Client.HSet(ctx, key, record).Err()
-		if err != nil {
-			return err
-		}
-
-		err = db.Client.Expire(ctx, key, config.QUOTA_PERIOD).Err()
+		// lua script because we need atomic execution
+		script := `
+			redis.call("HSET", KEYS[1], ARGV[1], ARGV[2])
+			redis.call("EXPIRE", KEYS[1], ARGV[3])
+			return 1
+		`
+		err := db.Client.Eval(ctx, script, []string{key}, "countdown", config.QUOTA, config.QUOTA_PERIOD).Err()
 		if err != nil {
 			return err
 		}
