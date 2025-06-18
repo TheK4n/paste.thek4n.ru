@@ -47,7 +47,7 @@ steps:
       REDIS_HOST: redis-test
       GOMAXPROCS: 1
     commands:
-      - go test -tags integration -count=1 -race -cover -coverprofile=coverage.out -covermode=atomic ./...
+      - go test -tags integration,e2e -count=1 -race -cover -coverprofile=coverage.out -covermode=atomic ./...
       - go tool cover -func=coverage.out
     depends_on:
       - build

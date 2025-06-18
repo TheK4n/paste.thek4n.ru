@@ -128,9 +128,13 @@ export REDIS_HOST=localhost  # Host of redis db or container
 
 ## Tests
 
+Before test you need to setup redis db. In docker for example:
+```sh
+docker run --rm -d -p 6379 --name redis redis
+```
 Run tests:
 ```sh
-GOMAXPROCS=1 go test -tags integration -count=1 -cover -covermode=atomic ./...
+GOMAXPROCS=1 go test -tags integration,e2e -count=1 -cover -covermode=atomic ./...
 ```
 
 

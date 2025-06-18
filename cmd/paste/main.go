@@ -66,16 +66,22 @@ func runServer(opts *Options) {
 		QuotaDB:   *quotaDb,
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /{key}/{$}", handlers.Get)
-	mux.HandleFunc("GET /{key}/clicks/{$}", handlers.GetClicks)
-	mux.HandleFunc("POST /{$}", handlers.Cache)
-	if opts.Health {
-		mux.HandleFunc("GET /health/{$}", handlers.Healthcheck)
-	}
+	mux := getMux(&handlers, opts)
 
 	hostport := fmt.Sprintf("%s:%d", opts.Host, opts.Port)
 
 	log.Printf("Server started on %s ...", hostport)
 	log.Fatal(http.ListenAndServe(hostport, mux))
+}
+
+func getMux(h *handlers.Application, opts *Options) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /{key}/{$}", h.Get)
+	mux.HandleFunc("GET /{key}/clicks/{$}", h.GetClicks)
+	mux.HandleFunc("POST /{$}", h.Cache)
+	if opts.Health {
+		mux.HandleFunc("GET /health/{$}", h.Healthcheck)
+	}
+
+	return mux
 }
