@@ -7,12 +7,9 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/thek4n/paste.thek4n.name/internal/config"
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
-
-const ATTEMPTS_TO_INCREASE_KEY_MIN_LENGHT = 20
-const MAX_KEY_LENGTH = 20
-const CHARSET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 var (
 	ErrKeyAlreadyTaken = errors.New("key already taken")
@@ -50,7 +47,7 @@ func Cache(db storage.KeysDB, timeout time.Duration, requestedKey string, ttl ti
 			return "", ErrKeyAlreadyTaken
 		}
 	} else {
-		uniqKey, err = generateUniqKey(ctx, db, length, MAX_KEY_LENGTH, ATTEMPTS_TO_INCREASE_KEY_MIN_LENGHT, CHARSET)
+		uniqKey, err = generateUniqKey(ctx, db, length, config.MAX_KEY_LENGTH, config.ATTEMPTS_TO_INCREASE_KEY_MIN_LENGHT, config.CHARSET)
 		if err != nil {
 			return "", fmt.Errorf("error on generating unique key: %w", err)
 		}

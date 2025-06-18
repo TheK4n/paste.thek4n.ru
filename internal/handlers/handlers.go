@@ -14,28 +14,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/thek4n/paste.thek4n.name/internal/config"
 	"github.com/thek4n/paste.thek4n.name/internal/keys"
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
-
-const ONE_MEBIBYTE = 1048576
-const UNPREVELEGED_MAX_BODY_SIZE = ONE_MEBIBYTE
-const PREVELEGED_MAX_BODY_SIZE = ONE_MEBIBYTE * 100
-
-const SECONDS_IN_MONTH = 60 * 60 * 24 * 30
-const DEFAULT_TTL_SECONDS = time.Second * SECONDS_IN_MONTH
-
-const MIN_TTL = time.Second * 0
-
-const SECONDS_IN_YEAR = 60 * 60 * 24 * 30 * 12
-const MAX_TTL = time.Second * SECONDS_IN_YEAR
-
-const MAX_KEY_LENGTH = 20
-const DEFAULT_KEY_LENGTH = 14
-const UNPRIVELEGED_MIN_KEY_LENGTH = 14
-const PRIVELEGED_MIN_KEY_LENGTH = 3
-
-const HEALTHCHECK_TIMEOUT = time.Second * 3
 
 const REDIRECT_BODY = `<html><head>
 <title>303 See Other</title>
@@ -63,7 +45,7 @@ func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
 	availability := true
 	msg := "ok"
 
-	ctx, cancel := context.WithTimeout(context.Background(), HEALTHCHECK_TIMEOUT)
+	ctx, cancel := context.WithTimeout(context.Background(), config.HEALTHCHECK_TIMEOUT)
 	defer cancel()
 
 	if !app.DB.Ping(ctx) {
@@ -177,7 +159,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if length < UNPRIVELEGED_MIN_KEY_LENGTH {
+	if length < config.UNPRIVELEGED_MIN_KEY_LENGTH {
 		if !authorized {
 			log.Printf(
 				"Unathorized attempt to set short key with length %d",
@@ -238,16 +220,16 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !authorized {
-		if r.ContentLength > UNPREVELEGED_MAX_BODY_SIZE {
+		if r.ContentLength > config.UNPREVELEGED_MAX_BODY_SIZE {
 			w.WriteHeader(http.StatusRequestEntityTooLarge)
-			_, _ = fmt.Fprintf(w, "Body too large. Maximum is %d bytes", UNPREVELEGED_MAX_BODY_SIZE)
+			_, _ = fmt.Fprintf(w, "Body too large. Maximum is %d bytes", config.UNPREVELEGED_MAX_BODY_SIZE)
 			return
 		}
 	}
 
-	if r.ContentLength > PREVELEGED_MAX_BODY_SIZE {
+	if r.ContentLength > config.PREVELEGED_MAX_BODY_SIZE {
 		w.WriteHeader(http.StatusRequestEntityTooLarge)
-		_, _ = fmt.Fprintf(w, "Body too large. Maximum is %d bytes", PREVELEGED_MAX_BODY_SIZE)
+		_, _ = fmt.Fprintf(w, "Body too large. Maximum is %d bytes", config.PREVELEGED_MAX_BODY_SIZE)
 		return
 	}
 
@@ -417,7 +399,7 @@ func getTTL(r *http.Request) (time.Duration, error) {
 	ttlQuery := r.URL.Query().Get("ttl")
 
 	if ttlQuery == "" {
-		return DEFAULT_TTL_SECONDS, nil
+		return config.DEFAULT_TTL_SECONDS, nil
 	}
 
 	ttl, err := time.ParseDuration(ttlQuery)
@@ -425,12 +407,12 @@ func getTTL(r *http.Request) (time.Duration, error) {
 		return 0, err
 	}
 
-	if ttl < MIN_TTL {
-		return 0, fmt.Errorf("TTL can`t be less then %s", MIN_TTL)
+	if ttl < config.MIN_TTL {
+		return 0, fmt.Errorf("TTL can`t be less then %s", config.MIN_TTL)
 	}
 
-	if ttl > MAX_TTL {
-		return 0, fmt.Errorf("TTL can`t be more then %s", MAX_TTL)
+	if ttl > config.MAX_TTL {
+		return 0, fmt.Errorf("TTL can`t be more then %s", config.MAX_TTL)
 	}
 
 	return ttl, nil
@@ -443,16 +425,16 @@ func getRequestedKey(r *http.Request) (string, error) {
 		return "", nil
 	}
 
-	if len(requestedKey) > MAX_KEY_LENGTH {
+	if len(requestedKey) > config.MAX_KEY_LENGTH {
 		return "", fmt.Errorf("requested key length more then max")
 	}
 
-	if len(requestedKey) < PRIVELEGED_MIN_KEY_LENGTH {
+	if len(requestedKey) < config.PRIVELEGED_MIN_KEY_LENGTH {
 		return "", fmt.Errorf("requested key length less then min")
 	}
 
 	for _, char := range requestedKey {
-		if !strings.ContainsRune(keys.CHARSET, char) {
+		if !strings.ContainsRune(config.CHARSET, char) {
 			return "", fmt.Errorf("requested key contains illegal char")
 		}
 	}
@@ -487,7 +469,7 @@ func getLength(r *http.Request) (int, error) {
 	lengthQuery := r.URL.Query().Get("len")
 
 	if lengthQuery == "" {
-		return DEFAULT_KEY_LENGTH, nil
+		return config.DEFAULT_KEY_LENGTH, nil
 	}
 
 	length, err := strconv.Atoi(lengthQuery)
@@ -495,12 +477,12 @@ func getLength(r *http.Request) (int, error) {
 		return 0, err
 	}
 
-	if length < PRIVELEGED_MIN_KEY_LENGTH {
-		return 0, fmt.Errorf("length can`t be less then %d", PRIVELEGED_MIN_KEY_LENGTH)
+	if length < config.PRIVELEGED_MIN_KEY_LENGTH {
+		return 0, fmt.Errorf("length can`t be less then %d", config.PRIVELEGED_MIN_KEY_LENGTH)
 	}
 
-	if length > MAX_KEY_LENGTH {
-		return 0, fmt.Errorf("length can`t be more then %d", MAX_KEY_LENGTH)
+	if length > config.MAX_KEY_LENGTH {
+		return 0, fmt.Errorf("length can`t be more then %d", config.MAX_KEY_LENGTH)
 	}
 
 	return length, nil

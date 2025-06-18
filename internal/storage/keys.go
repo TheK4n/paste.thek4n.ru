@@ -13,9 +13,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/thek4n/paste.thek4n.name/internal/config"
 )
-
-const COMPRESS_THRESHOLD_BYTES = 4096
 
 var (
 	ErrKeyNotFound = errors.New("key not found in db")
@@ -116,7 +115,7 @@ func (db *KeysDB) GetClicks(ctx context.Context, key string) (int, error) {
 }
 
 func (db *KeysDB) Set(ctx context.Context, key string, ttl time.Duration, record KeyRecord) error {
-	if len(record.Body) > COMPRESS_THRESHOLD_BYTES {
+	if len(record.Body) > config.COMPRESS_THRESHOLD_BYTES {
 		compressedBody, err := compress(record.Body)
 		if err != nil {
 			return fmt.Errorf("failed to compress: %w", err)

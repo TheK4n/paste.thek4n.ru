@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/thek4n/paste.thek4n.name/internal/config"
 	"github.com/thek4n/paste.thek4n.name/internal/handlers"
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
@@ -30,7 +31,7 @@ func TestCacheSuccess(t *testing.T) {
 	assert.Equal(t, resp.StatusCode, http.StatusOK)
 }
 
-func TestGetReturnsEqualBody(t *testing.T) {
+func TestGetReturnsCorrectBody(t *testing.T) {
 	// Arrange
 	ts := setupTestServer(t)
 	defer ts.Close()
@@ -66,7 +67,7 @@ func TestClicksReturnsZeroAfterZeroRequests(t *testing.T) {
 	assert.Equal(t, "0", readerToString(resp.Body))
 }
 
-func TestClicksReturnsCorrectNumberAfterNumberOfRequests(t *testing.T) {
+func TestReturnsCorrectClicksNumberAfterNumberOfRequests(t *testing.T) {
 	// Arrange
 	ts := setupTestServer(t)
 	defer ts.Close()
@@ -86,6 +87,17 @@ func TestClicksReturnsCorrectNumberAfterNumberOfRequests(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, clicksResponse.StatusCode, http.StatusOK)
 	assert.Equal(t, strconv.FormatInt(reqNumber, 10), readerToString(clicksResponse.Body))
+}
+
+func TestUnprivelegedCacheBigBodyReturns413(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.Close()
+	largeBody := bytes.Repeat([]byte("a"), config.UNPREVELEGED_MAX_BODY_SIZE+100)
+	bodyReader := bytes.NewReader(largeBody)
+
+	resp, _ := http.Post(ts.URL+"/", http.DetectContentType([]byte(largeBody)), bodyReader)
+
+	assert.Equal(t, resp.StatusCode, http.StatusRequestEntityTooLarge)
 }
 
 func readerToString(body io.ReadCloser) string {

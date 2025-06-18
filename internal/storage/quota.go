@@ -7,10 +7,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/thek4n/paste.thek4n.name/internal/config"
 )
-
-const QUOTA_PERIOD = 24 * time.Hour
-const QUOTA = 50
 
 type QuotaRecord struct {
 	Countdown int `redis:"countdown"`
@@ -28,7 +26,7 @@ func (db *QuotaDB) CreateAndSubOrJustSub(ctx context.Context, key string) error 
 
 	if !exists {
 		record := QuotaRecord{
-			Countdown: QUOTA,
+			Countdown: config.QUOTA,
 		}
 
 		// TODO: обернуть 2 нижележащие инструкции в транзакцию (мы не хотим, чтобы случайно забанился навечно айпишник)
@@ -37,7 +35,7 @@ func (db *QuotaDB) CreateAndSubOrJustSub(ctx context.Context, key string) error 
 			return err
 		}
 
-		err = db.Client.Expire(ctx, key, QUOTA_PERIOD).Err()
+		err = db.Client.Expire(ctx, key, config.QUOTA_PERIOD).Err()
 		if err != nil {
 			return err
 		}
