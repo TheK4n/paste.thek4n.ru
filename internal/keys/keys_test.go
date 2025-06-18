@@ -24,7 +24,9 @@ func setupTestKeysDB(t *testing.T) *storage.KeysDB {
 
 	// Clean db before test
 	err = db.Client.FlushDB(context.Background()).Err()
-	assert.NoError(t, err)
+	if err != nil {
+		panic(err)
+	}
 
 	return db
 }

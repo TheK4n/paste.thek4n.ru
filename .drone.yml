@@ -45,6 +45,7 @@ steps:
     image: golang:1.23
     environment:
       REDIS_HOST: redis-test
+      GOMAXPROCS: 1
     commands:
       - go test -count=1 -race -cover -coverprofile=coverage.out -covermode=atomic ./...
       - go tool cover -func=coverage.out
