@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/thek4n/paste.thek4n.name/internal/config"
 )
 
 func setupTestKeysDB(t *testing.T) *KeysDB {
@@ -106,7 +107,7 @@ func TestKeysDB_Get(t *testing.T) {
 
 	t.Run("get compressed data", func(t *testing.T) {
 		compressedKey := "compressed_key"
-		largeBody := bytes.Repeat([]byte("a"), COMPRESS_THRESHOLD_BYTES+1)
+		largeBody := bytes.Repeat([]byte("a"), config.COMPRESS_THRESHOLD_BYTES+1)
 
 		record := KeyRecord{
 			Body: largeBody,
@@ -178,7 +179,7 @@ func TestKeysDB_Set(t *testing.T) {
 	})
 
 	t.Run("auto compress large data", func(t *testing.T) {
-		largeBody := bytes.Repeat([]byte("a"), COMPRESS_THRESHOLD_BYTES+1)
+		largeBody := bytes.Repeat([]byte("a"), config.COMPRESS_THRESHOLD_BYTES+1)
 		record := KeyRecord{
 			Body: largeBody,
 		}

@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/thek4n/paste.thek4n.name/internal/config"
 )
 
 func setupTestRedis(t *testing.T) *QuotaDB {
@@ -39,10 +41,11 @@ func TestQuotaDB_CreateAndSubOrJustSub(t *testing.T) {
 
 		val, err := db.Client.HGet(ctx, key, "countdown").Int()
 		assert.NoError(t, err)
-		assert.Equal(t, QUOTA-1, val)
-
+		assert.Equal(t, config.QUOTA-1, val)
 		ttl := db.Client.TTL(ctx, key).Val()
-		assert.True(t, ttl > 0 && ttl <= QUOTA_PERIOD)
+
+		assert.True(t, ttl > 0)
+		assert.True(t, ttl <= config.QUOTA_PERIOD)
 	})
 
 	t.Run("decrement existing record", func(t *testing.T) {
@@ -51,7 +54,7 @@ func TestQuotaDB_CreateAndSubOrJustSub(t *testing.T) {
 
 		val, err := db.Client.HGet(ctx, key, "countdown").Int()
 		assert.NoError(t, err)
-		assert.Equal(t, QUOTA-2, val)
+		assert.Equal(t, config.QUOTA-2, val)
 	})
 }
 

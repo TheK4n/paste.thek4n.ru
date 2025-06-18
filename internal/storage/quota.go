@@ -27,7 +27,7 @@ func (db *QuotaDB) CreateAndSubOrJustSub(ctx context.Context, key string) error 
 			redis.call("EXPIRE", KEYS[1], ARGV[3])
 			return 1
 		`
-		err := db.Client.Eval(ctx, script, []string{key}, "countdown", config.QUOTA, config.QUOTA_PERIOD).Err()
+		err := db.Client.Eval(ctx, script, []string{key}, "countdown", config.QUOTA, int(config.QUOTA_PERIOD.Seconds())).Err()
 		if err != nil {
 			return err
 		}

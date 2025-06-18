@@ -111,7 +111,7 @@ func readerToString(body io.ReadCloser) string {
 
 func setupTestServer(t *testing.T) *httptest.Server {
 	redisHost := os.Getenv("REDIS_HOST")
-	if redisHost != "" {
+	if redisHost == "" {
 		redisHost = "localhost"
 	}
 
