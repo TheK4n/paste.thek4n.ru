@@ -126,4 +126,12 @@ export REDIS_HOST=localhost  # Host of redis db or container
 ```
 
 
+## Tests
+
+Run tests:
+```sh
+GOMAXPROCS=1 go test -tags integration -count=1 -cover -covermode=atomic ./...
+```
+
+
 <h1 align="center"><a href="#top">▲</a></h1>
