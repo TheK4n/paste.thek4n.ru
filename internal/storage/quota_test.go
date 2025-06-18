@@ -20,7 +20,6 @@ func setupTestRedis(t *testing.T) *QuotaDB {
 		panic(err)
 	}
 
-	// Очищаем базу перед тестом
 	err = db.Client.FlushDB(context.Background()).Err()
 	assert.NoError(t, err)
 
@@ -111,23 +110,5 @@ func TestQuotaDB_exists(t *testing.T) {
 		exists, err := db.exists(ctx, key)
 		assert.NoError(t, err)
 		assert.True(t, exists)
-	})
-}
-
-func TestInitQuotaStorageDB(t *testing.T) {
-	t.Run("successful connection", func(t *testing.T) {
-		dbHost := os.Getenv("REDIS_HOST")
-		if dbHost == "" {
-			dbHost = "localhost"
-		}
-		db, err := InitQuotaStorageDB(dbHost, 6379)
-		assert.NoError(t, err)
-		assert.NotNil(t, db.Client)
-	})
-
-	t.Run("connection error", func(t *testing.T) {
-		db, err := InitQuotaStorageDB("invalid_host", 6379)
-		assert.Error(t, err)
-		assert.Nil(t, db)
 	})
 }

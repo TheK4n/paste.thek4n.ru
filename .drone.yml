@@ -46,7 +46,7 @@ steps:
     environment:
       REDIS_HOST: redis-test
     commands:
-      - go test -race -cover -coverprofile=coverage.out -covermode=atomic ./...
+      - go test -count=1 -race -cover -coverprofile=coverage.out -covermode=atomic ./...
       - go tool cover -func=coverage.out
     depends_on:
       - build

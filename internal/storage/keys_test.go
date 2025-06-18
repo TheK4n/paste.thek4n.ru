@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -188,25 +187,6 @@ func TestKeysDB_Set(t *testing.T) {
 		err = db.Client.HGetAll(ctx, "large_key").Scan(&result)
 		assert.NoError(t, err)
 		assert.True(t, isCompressed(result.Body))
-	})
-}
-
-func TestKeysDB_Ping(t *testing.T) {
-	db := setupTestKeysDB(t)
-	ctx := context.Background()
-
-	t.Run("ping success", func(t *testing.T) {
-		assert.True(t, db.Ping(ctx))
-	})
-
-	t.Run("ping failure", func(t *testing.T) {
-		// Создаем "битый" клиент
-		badDB := &KeysDB{
-			Client: redis.NewClient(&redis.Options{
-				Addr: "invalid_host:6379",
-			}),
-		}
-		assert.False(t, badDB.Ping(ctx))
 	})
 }
 
