@@ -15,6 +15,7 @@ var (
 	ErrKeyAlreadyTaken = errors.New("key already taken")
 )
 
+// Get key from db using timeout for context
 func Get(db storage.KeysDB, key string, timeout time.Duration) (storage.KeyRecordAnswer, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -22,6 +23,7 @@ func Get(db storage.KeysDB, key string, timeout time.Duration) (storage.KeyRecor
 	return db.Get(ctx, key)
 }
 
+// Get clicks for key from db using timeout for context
 func GetClicks(db storage.KeysDB, key string, timeout time.Duration) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -29,6 +31,10 @@ func GetClicks(db storage.KeysDB, key string, timeout time.Duration) (int, error
 	return db.GetClicks(ctx, key)
 }
 
+// Cache record using timeout for context
+// requestedKey - you can request custom key, if it exists func returns error ErrKeyAlreadyTaken
+// if requestedKey is empty, func generates new unique key with length
+// ttl - time to live for key, after this time, key will automaticly deletes
 func Cache(db storage.KeysDB, timeout time.Duration, requestedKey string, ttl time.Duration, length int, record storage.KeyRecord) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -104,6 +110,7 @@ func generateUniqKey(
 	return key, nil
 }
 
+// Generate new random key with specified length using charset
 func generateKey(length int, charset string) string {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	result := make([]byte, length)

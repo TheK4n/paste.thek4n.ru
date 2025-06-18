@@ -52,6 +52,9 @@ func (db *KeysDB) Exists(ctx context.Context, key string) (bool, error) {
 	return keysNumber > 0, nil
 }
 
+// Get returns KeyRecordAnswer with body by key
+// increases clicks for key and removes if disposable counter exhausted
+// decompresses body if it compressed in db
 func (db *KeysDB) Get(ctx context.Context, key string) (KeyRecordAnswer, error) {
 	var answer KeyRecordAnswer
 	var record KeyRecord
@@ -114,6 +117,9 @@ func (db *KeysDB) GetClicks(ctx context.Context, key string) (int, error) {
 	return strconv.Atoi(clicks)
 }
 
+// Set KeyRecord in db by key
+// compresses if body size bigger then threshold config value
+// if ttl equals zero key has endless time to live
 func (db *KeysDB) Set(ctx context.Context, key string, ttl time.Duration, record KeyRecord) error {
 	if len(record.Body) > config.COMPRESS_THRESHOLD_BYTES {
 		compressedBody, err := compress(record.Body)
