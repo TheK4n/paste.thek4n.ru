@@ -24,6 +24,7 @@ type Options struct {
 	DBHost string `long:"dbhost" default:"localhost" description:"Database host"`
 }
 
+//go:generate sh -c "echo -n \"$(git describe --tags --abbrev=0 )\" > VERSION"
 func main() {
 	var opts Options
 	_, err := flags.Parse(&opts)
