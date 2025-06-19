@@ -125,6 +125,7 @@ func TestKeysDB_GetClicks(t *testing.T) {
 	db := setupTestKeysDB(t)
 	ctx := context.Background()
 	key := "test_key"
+	expectedClicks := 5
 
 	t.Run("key not found", func(t *testing.T) {
 		_, err := db.GetClicks(ctx, "nonexistent_key")
@@ -134,14 +135,14 @@ func TestKeysDB_GetClicks(t *testing.T) {
 	t.Run("get clicks count", func(t *testing.T) {
 		record := KeyRecord{
 			Body:   []byte("test"),
-			Clicks: 5,
+			Clicks: expectedClicks,
 		}
 		err := db.Set(ctx, key, 0, record)
 		assert.NoError(t, err)
 
-		clicks, err := db.GetClicks(ctx, key)
+		gotClicks, err := db.GetClicks(ctx, key)
 		assert.NoError(t, err)
-		assert.Equal(t, 5, clicks)
+		assert.Equal(t, expectedClicks, gotClicks)
 	})
 }
 

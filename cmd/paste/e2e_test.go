@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -22,71 +23,72 @@ import (
 func TestCacheSuccess(t *testing.T) {
 	ts := setupTestServer(t)
 	defer ts.Close()
-	body := "body"
-	bodyReader := strings.NewReader(body)
+	expectedBody := "body"
+	bodyReader := strings.NewReader(expectedBody)
 
-	resp, err := http.Post(ts.URL+"/", http.DetectContentType([]byte(body)), bodyReader)
+	resp, err := http.Post(ts.URL+"/", http.DetectContentType([]byte(expectedBody)), bodyReader)
 
 	assert.NoError(t, err)
-	assert.Equal(t, resp.StatusCode, http.StatusOK)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestGetReturnsCorrectBody(t *testing.T) {
 	// Arrange
 	ts := setupTestServer(t)
 	defer ts.Close()
-	body := "body"
-	bodyReader := strings.NewReader(body)
-	resp, _ := http.Post(ts.URL+"/", http.DetectContentType([]byte(body)), bodyReader)
-	gotUrl := readerToString(resp.Body)
+	expectedBody := "body"
+	bodyReader := strings.NewReader(expectedBody)
+	response, err := http.Post(ts.URL+"/", http.DetectContentType([]byte(expectedBody)), bodyReader)
+	assert.NoError(t, err)
+	gotUrl := readerToString(response.Body)
 
 	// Act
-	resp, err := http.Get(gotUrl)
+	response, err = http.Get(gotUrl)
 
 	// Assert
 	assert.NoError(t, err)
-	assert.Equal(t, resp.StatusCode, http.StatusOK)
-	assert.Equal(t, body, readerToString(resp.Body))
+	assert.Equal(t, http.StatusOK, response.StatusCode)
+	assert.Equal(t, expectedBody, readerToString(response.Body))
 }
 
 func TestClicksReturnsZeroAfterZeroRequests(t *testing.T) {
 	// Arrange
 	ts := setupTestServer(t)
 	defer ts.Close()
-	body := "body"
-	bodyReader := strings.NewReader(body)
-	resp, _ := http.Post(ts.URL+"/", http.DetectContentType([]byte(body)), bodyReader)
-	gotUrl := readerToString(resp.Body)
+	expectedBody := "body"
+	bodyReader := strings.NewReader(expectedBody)
+	response, _ := http.Post(ts.URL+"/", http.DetectContentType([]byte(expectedBody)), bodyReader)
+	gotUrl := readerToString(response.Body)
 
 	// Act
-	resp, err := http.Get(gotUrl + "/clicks/")
+	response, err := http.Get(gotUrl + "/clicks/")
 
 	// Assert
 	assert.NoError(t, err)
-	assert.Equal(t, resp.StatusCode, http.StatusOK)
-	assert.Equal(t, "0", readerToString(resp.Body))
+	assert.Equal(t, http.StatusOK, response.StatusCode)
+	assert.Equal(t, "0", readerToString(response.Body))
 }
 
 func TestReturnsCorrectClicksNumberAfterNumberOfRequests(t *testing.T) {
 	// Arrange
 	ts := setupTestServer(t)
 	defer ts.Close()
-	body := "body"
-	bodyReader := strings.NewReader(body)
-	var reqNumber int64 = 3
-	clicksResponse, _ := http.Post(ts.URL+"/", http.DetectContentType([]byte(body)), bodyReader)
+	expectedBody := "body"
+	bodyReader := strings.NewReader(expectedBody)
+	var expectedRequestsNumber int64 = 3
+	clicksResponse, _ := http.Post(ts.URL+"/", http.DetectContentType([]byte(expectedBody)), bodyReader)
 	gotUrl := readerToString(clicksResponse.Body)
 
 	// Act
-	for range reqNumber {
+	for range expectedRequestsNumber {
 		_, _ = http.Get(gotUrl)
 	}
 	clicksResponse, err := http.Get(gotUrl + "/clicks/")
 
 	// Assert
 	assert.NoError(t, err)
-	assert.Equal(t, clicksResponse.StatusCode, http.StatusOK)
-	assert.Equal(t, strconv.FormatInt(reqNumber, 10), readerToString(clicksResponse.Body))
+	assert.Equal(t, http.StatusOK, clicksResponse.StatusCode)
+	assert.Equal(t, strconv.FormatInt(expectedRequestsNumber, 10), readerToString(clicksResponse.Body))
 }
 
 func TestUnprivelegedCacheBigBodyReturns413(t *testing.T) {
@@ -97,7 +99,67 @@ func TestUnprivelegedCacheBigBodyReturns413(t *testing.T) {
 
 	resp, _ := http.Post(ts.URL+"/", http.DetectContentType([]byte(largeBody)), bodyReader)
 
-	assert.Equal(t, resp.StatusCode, http.StatusRequestEntityTooLarge)
+	assert.Equal(t, http.StatusRequestEntityTooLarge, resp.StatusCode)
+}
+
+func TestDisposableRecordRemovesAfterExpectedNumberOfRequests(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.Close()
+	expectedBody := "body"
+	bodyReader := strings.NewReader(expectedBody)
+	disposableCount := 2
+	resp, err := http.Post(fmt.Sprintf("%s/?disposable=%d", ts.URL, disposableCount), http.DetectContentType([]byte(expectedBody)), bodyReader)
+	assert.NoError(t, err)
+	gotUrl := readerToString(resp.Body)
+
+	for range disposableCount {
+		_, err = http.Get(gotUrl)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+	}
+	resp, err = http.Get(gotUrl)
+
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestCachedRedirectsToExpectedURL(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.Close()
+	expectedURL := "https://example.com"
+	bodyReader := bytes.NewReader([]byte(expectedURL))
+	resp, err := http.Post(fmt.Sprintf("%s/?url=true", ts.URL), http.DetectContentType([]byte(expectedURL)), bodyReader)
+	assert.NoError(t, err)
+	gotUrl := readerToString(resp.Body)
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err = client.Get(gotUrl)
+
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusSeeOther, resp.StatusCode)
+	assert.Equal(t, expectedURL, resp.Header.Get("Location"))
+}
+
+func TestRequestCustomKeyLength(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.Close()
+	body := "body"
+	bodyReader := strings.NewReader(body)
+	expectedLength := 16
+
+	resp, err := http.Post(fmt.Sprintf("%s/?len=%d", ts.URL, expectedLength), http.DetectContentType([]byte(body)), bodyReader)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedLength, getLenOfUrlKey(readerToString(resp.Body)))
+}
+
+func getLenOfUrlKey(url string) int {
+	key := strings.Split(url, "/")[3]
+	return len(key)
 }
 
 func readerToString(body io.ReadCloser) string {

@@ -67,7 +67,7 @@ func TestNotExistingKeyIsNotFound(t *testing.T) {
 	_, err := Get(db, key, timeout)
 
 	assert.Error(t, err)
-	assert.Equal(t, err, storage.ErrKeyNotFound)
+	assert.Equal(t, storage.ErrKeyNotFound, err)
 }
 
 func TestGetClicksEqualNumberOfGetRequests(t *testing.T) {
@@ -87,7 +87,7 @@ func TestGetClicksEqualNumberOfGetRequests(t *testing.T) {
 	assert.NoError(t, errGetting)
 	clicks, err := GetClicks(db, key, timeout)
 	assert.NoError(t, err)
-	assert.Equal(t, clicks, requestNumber)
+	assert.Equal(t, requestNumber, clicks)
 }
 
 func TestGetClicksForNotExistingKeyIsNotFound(t *testing.T) {
@@ -98,7 +98,7 @@ func TestGetClicksForNotExistingKeyIsNotFound(t *testing.T) {
 	_, err := GetClicks(db, key, timeout)
 
 	assert.Error(t, err)
-	assert.Equal(t, err, storage.ErrKeyNotFound)
+	assert.Equal(t, storage.ErrKeyNotFound, err)
 }
 
 func TestRequestedKeyAlreadyTaken(t *testing.T) {
@@ -112,7 +112,7 @@ func TestRequestedKeyAlreadyTaken(t *testing.T) {
 
 	assert.NoError(t, errCaching)
 	assert.Error(t, errCachingSecond)
-	assert.Equal(t, errCachingSecond, ErrKeyAlreadyTaken)
+	assert.Equal(t, ErrKeyAlreadyTaken, errCachingSecond)
 }
 
 func TestSuccessfulCacheWithGeneratedKey(t *testing.T) {
@@ -130,5 +130,5 @@ func TestSuccessfulCacheWithGeneratedKey(t *testing.T) {
 
 	result, err := Get(db, gotKey, timeout)
 	assert.NoError(t, err)
-	assert.Equal(t, result.Body, record.Body)
+	assert.Equal(t, record.Body, result.Body)
 }
