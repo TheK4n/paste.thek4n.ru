@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,7 +13,8 @@ import (
 	flags "github.com/jessevdk/go-flags"
 )
 
-const VERSION = "1.2.0"
+//go:embed VERSION
+var VERSION string
 
 type Options struct {
 	Port   int    `short:"p" long:"port" default:"80" description:"Port to listen"`
