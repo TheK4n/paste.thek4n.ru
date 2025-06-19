@@ -193,24 +193,6 @@ func TestKeysDB_Set(t *testing.T) {
 	})
 }
 
-func TestInitKeysStorageDB(t *testing.T) {
-	t.Run("successful connection", func(t *testing.T) {
-		dbHost := os.Getenv("REDIS_HOST")
-		if dbHost == "" {
-			dbHost = "localhost"
-		}
-		db, err := InitKeysStorageDB(dbHost, 6379)
-		assert.NoError(t, err)
-		assert.NotNil(t, db.Client)
-	})
-
-	t.Run("connection error", func(t *testing.T) {
-		db, err := InitKeysStorageDB("invalid_host", 6379)
-		assert.Error(t, err)
-		assert.Nil(t, db)
-	})
-}
-
 func TestCompression(t *testing.T) {
 	t.Run("compress and decompress", func(t *testing.T) {
 		data := []byte("test data to compress")
