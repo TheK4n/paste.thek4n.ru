@@ -4,3 +4,4 @@ bin/*
 coverage.out
 node_modules/
 dist/
+cmd/paste/.version

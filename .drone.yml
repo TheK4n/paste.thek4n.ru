@@ -6,7 +6,7 @@ steps:
   - name: build
     image: golang:1.23
     commands:
-      - go build -v ./...
+      - make build
     when:
       branch: [master, release/*]
     volumes:
@@ -45,7 +45,6 @@ steps:
     image: golang:1.23
     environment:
       REDIS_HOST: redis-test
-      GOMAXPROCS: 1
     commands:
       - go test -tags integration,e2e,e2ettl -count=1 -race -cover -coverprofile=coverage.out -covermode=atomic ./...
       - go tool cover -func=coverage.out
@@ -73,9 +72,7 @@ steps:
       - ssh -o StrictHostKeyChecking=no thek4n@192.168.50.5 "cd ~/services/paste.thek4n.name && git checkout deploy && git pull --rebase localorigin master && docker compose up -d --build"
       - shred -zun 2 ~/.ssh/id_rsa
     when:
-      event: push
-      branch:
-        include: [release/*]
+      event: tag
     depends_on:
       - build
       - check-fmt

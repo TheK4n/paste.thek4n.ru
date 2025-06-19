@@ -13,7 +13,7 @@ import (
 	flags "github.com/jessevdk/go-flags"
 )
 
-//go:embed VERSION
+//go:embed .version
 var VERSION string
 
 type Options struct {
@@ -24,7 +24,7 @@ type Options struct {
 	DBHost string `long:"dbhost" default:"localhost" description:"Database host"`
 }
 
-//go:generate sh -c "echo -n \"$(git describe --tags --abbrev=0 )\" > VERSION"
+//go:generate sh -c "echo -n \"$(git describe --tags --abbrev=0)\" > .version"
 func main() {
 	var opts Options
 	_, err := flags.Parse(&opts)
