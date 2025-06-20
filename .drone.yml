@@ -79,7 +79,14 @@ steps:
       - mkdir -p ~/.ssh
       - echo "$SSH_KEY" > ~/.ssh/id_rsa
       - chmod 600 ~/.ssh/id_rsa
-      - ssh -o StrictHostKeyChecking=no thek4n@192.168.50.5 "cd ~/services/paste.thek4n.name && git fetch --all && git checkout deploy && git rebase ${DRONE_TAG} && docker compose up -d --build"
+      - |
+        ssh -o StrictHostKeyChecking=no thek4n@192.168.50.5 \
+        "cd ~/services/paste.thek4n.name && \
+          git fetch --all && \
+          git checkout deploy && \
+          git rebase ${DRONE_TAG} && \
+          docker compose up -d --build"
+
       - shred -zun 2 ~/.ssh/id_rsa
     when:
       event: tag
