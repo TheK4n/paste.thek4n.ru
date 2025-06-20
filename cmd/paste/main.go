@@ -13,8 +13,9 @@ import (
 	flags "github.com/jessevdk/go-flags"
 )
 
-//go:embed .version
-var VERSION string
+var (
+	version = "unknown"
+)
 
 type Options struct {
 	Port   int    `short:"p" long:"port" default:"80" description:"Port to listen"`
@@ -24,7 +25,6 @@ type Options struct {
 	DBHost string `long:"dbhost" default:"localhost" description:"Database host"`
 }
 
-//go:generate sh -c "echo -n \"$(git describe --tags --abbrev=0)\" > .version"
 func main() {
 	var opts Options
 	_, err := flags.Parse(&opts)
@@ -63,7 +63,7 @@ func runServer(opts *Options) {
 	}
 
 	handlers := handlers.Application{
-		Version:   VERSION,
+		Version:   version,
 		DB:        *db,
 		ApiKeysDB: *apikeysDb,
 		QuotaDB:   *quotaDb,

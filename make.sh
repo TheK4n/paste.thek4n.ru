@@ -13,8 +13,8 @@ build() {
     export CGO_ENABLED=0
     export GOOS=linux
 
-    go generate ./... && \
-    go build -v -ldflags "-w -s" -a -installsuffix cgo "$@" ./...
+    version="$(git describe --tags --abbrev=0)"
+    go build -v -ldflags "-w -s -X 'main.version=${version}'" "$@" ./...
 }
 
 func="${1}"; shift
