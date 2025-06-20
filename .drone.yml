@@ -8,41 +8,45 @@ steps:
     commands:
       - git fetch --tags
       - ./make.sh build
-    when:
-      event:
-        include:
-        - push
-        - tag
     volumes:
       - name: go-build-cache
         path: /root/.cache/go-build
       - name: go-mod-cache
         path: /go
+    when:
+      event:
+        include:
+        - push
+        - tag
 
   - name: check-fmt
     image: golang:1.23
     commands:
+      - go generate ./...
       - go fmt ./...
       - git diff --exit-code
       - go vet ./...
-    when:
-      event:
-        include:
-        - push
-        - tag
-    depends_on:
-      - build
     volumes:
       - name: go-build-cache
         path: /root/.cache/go-build
       - name: go-mod-cache
         path: /go
+    when:
+      event:
+        include:
+        - push
+        - tag
 
   - name: lint
     image: golangci/golangci-lint:latest
     commands:
       - go generate ./...
       - golangci-lint -v run --timeout 5m
+    volumes:
+      - name: go-build-cache
+        path: /root/.cache/go-build
+      - name: go-mod-cache
+        path: /go
     when:
       event:
         include:
@@ -58,16 +62,16 @@ steps:
     depends_on:
       - build
       - redis-test
-    when:
-      event:
-        include:
-        - push
-        - tag
     volumes:
       - name: go-build-cache
         path: /root/.cache/go-build
       - name: go-mod-cache
         path: /go
+    when:
+      event:
+        include:
+        - push
+        - tag
 
   - name: prod
     image: alpine
@@ -107,6 +111,3 @@ volumes:
 - name: go-mod-cache
   host:
     path: /tmp/go-mod-cache
-- name: docker-sock
-  host:
-    path: /var/run/docker.sock
