@@ -9,7 +9,10 @@ steps:
       - git fetch --tags
       - ./make.sh build
     when:
-      branch: master
+      event:
+        include:
+        - push
+        - tag
     volumes:
       - name: go-build-cache
         path: /root/.cache/go-build
@@ -23,7 +26,10 @@ steps:
       - git diff --exit-code
       - go vet ./...
     when:
-      branch: master
+      event:
+        include:
+        - push
+        - tag
     depends_on:
       - build
     volumes:
@@ -38,7 +44,10 @@ steps:
       - go generate ./...
       - golangci-lint -v run --timeout 5m
     when:
-      branch: master
+      event:
+        include:
+        - push
+        - tag
 
   - name: test
     image: golang:1.23
@@ -50,7 +59,10 @@ steps:
       - build
       - redis-test
     when:
-      branch: master
+      event:
+        include:
+        - push
+        - tag
     volumes:
       - name: go-build-cache
         path: /root/.cache/go-build
