@@ -9,7 +9,7 @@ ENV APP_VERSION=$APP_VERSION
 COPY . .
 
 RUN --mount=type=cache,target=/go/pkg/mod \
-    OUTPUTDIR="/app/" ./bin/make build
+    OUTPUTDIR="/app/" APP_VERSION=$APP_VERSION ./bin/make build
 
 
 # upx

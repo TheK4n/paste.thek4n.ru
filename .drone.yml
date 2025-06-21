@@ -70,7 +70,7 @@ steps:
         - push
         - tag
 
-  - name: dockerize
+  - name: dockerize-backend
     image: plugins/docker
     environment:
       DOCKER_BUILDKIT: 1
@@ -92,32 +92,50 @@ steps:
     when:
       event: tag
 
-  # - name: prod
-  #   image: alpine
-  #   environment:
-  #     SSH_KEY:
-  #       from_secret: ssh_key
-  #   commands:
-  #     - apk add --no-cache openssh
-  #     - mkdir -p ~/.ssh
-  #     - echo "$SSH_KEY" > ~/.ssh/id_rsa
-  #     - chmod 600 ~/.ssh/id_rsa
-  #     - |
-  #       ssh -o StrictHostKeyChecking=no thek4n@192.168.50.5 \
-  #       "cd ~/services/paste.thek4n.name && \
-  #         git fetch --all && \
-  #         git checkout deploy && \
-  #         git rebase ${DRONE_TAG} && \
-  #         docker compose up -d --build"
-  #
-  #     - shred -zun 2 ~/.ssh/id_rsa
-  #   when:
-  #     event: tag
-  #   depends_on:
-  #     - test-build
-  #     - check-fmt
-  #     - lint
-  #     - test
+  - name: dockerize-frontend
+    image: plugins/docker
+    environment:
+      DOCKER_BUILDKIT: 1
+    settings:
+      repo: 192.168.50.5:8091/thek4n/paste-frontend
+      tags:
+        - latest
+        - ${DRONE_TAG}
+      dockerfile: frontend/Dockerfile
+      context: frontend
+      registry: 192.168.50.5:8091
+      insecure: true
+      build_args:
+        VITE_API_URL: https://paste.thek4n.ru
+    depends_on:
+      - test-build
+      - check-fmt
+      - lint
+      - test
+    when:
+      event: tag
+
+  - name: deploy
+    image: alpine
+    environment:
+      SSH_KEY:
+        from_secret: ssh_key
+    commands:
+      - apk add --no-cache openssh
+      - mkdir -p ~/.ssh
+      - echo "$SSH_KEY" > ~/.ssh/id_rsa
+      - chmod 600 ~/.ssh/id_rsa
+      - |
+        ssh -o StrictHostKeyChecking=no thek4n@192.168.50.5 \
+        "cd ~/services/paste.thek4n.name &&
+          docker compose up -d"
+
+      - shred -zun 2 ~/.ssh/id_rsa
+    when:
+      event: tag
+    depends_on:
+      - dockerize-backend
+      - dockerize-frontend
 
 services:
   - name: redis-test
