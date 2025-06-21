@@ -6,7 +6,7 @@ WORKDIR /build
 COPY . .
 
 RUN --mount=type=cache,target=/go/pkg/mod \
-    ./make.sh build -o /app/
+    OUTPUTDIR=/app/ ./bin/make build "$(git describe --tags --abbrev=0)"
 
 
 # upx

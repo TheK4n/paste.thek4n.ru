@@ -3,11 +3,10 @@ type: docker
 name: docker-compose-deploy
 
 steps:
-  - name: build
+  - name: test-build
     image: golang:1.23
     commands:
-      - git fetch --tags
-      - ./make.sh build
+      - ./bin/make build
     volumes:
       - name: go-build-cache
         path: /root/.cache/go-build
@@ -56,9 +55,9 @@ steps:
     environment:
       REDIS_HOST: redis-test
     commands:
-      - ./make.sh test
+      - ./bin/make test
     depends_on:
-      - build
+      - test-build
       - redis-test
     volumes:
       - name: go-build-cache
@@ -93,7 +92,7 @@ steps:
     when:
       event: tag
     depends_on:
-      - build
+      - test-build
       - check-fmt
       - lint
       - test

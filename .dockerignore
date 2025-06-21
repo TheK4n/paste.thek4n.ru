@@ -2,6 +2,7 @@
 .dockerignore
 Dockerfile
 bin
+!bin/make
 frontend
 README.md
 docker-compose.yaml

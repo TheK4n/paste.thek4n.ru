@@ -1,0 +1,23 @@
+#!/bin/sh
+
+set -ue
+
+
+cmd_test() {
+    export GOMAXPROCS=1
+    go test -tags integration,e2e,e2ettl -count=1 -race -cover -covermode=atomic ./...
+}
+
+cmd_build() {
+    export CGO_ENABLED=0
+    export GOOS=linux
+    output="${OUTPUTDIR:-bin/}"
+
+    version="${1:-unknown}"
+    go build -v -ldflags "-w -s -X 'main.version=${version}'" -o "${output}" ./...
+}
+
+case "${1}" in
+    test) shift;  cmd_test  "$@" ;;
+    build) shift; cmd_build "$@" ;;
+esac
