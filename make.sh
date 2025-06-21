@@ -17,5 +17,4 @@ build() {
 }
 
 func="${1}"; shift
-
 "${func}" "$@"
