@@ -28,10 +28,6 @@ docker compose up -d
 
 ## Usage
 
-### Webinterface
-http://localhost:8080/
-
-
 ### API
 
 Put text and get it by unique url

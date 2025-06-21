@@ -3,6 +3,3 @@ bin/*
 !bin/apikeys
 !bin/make
 coverage.out
-node_modules/
-dist/
-cmd/paste/.version

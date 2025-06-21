@@ -70,7 +70,7 @@ steps:
         - push
         - tag
 
-  - name: dockerize-backend
+  - name: dockerize
     image: plugins/docker
     environment:
       DOCKER_BUILDKIT: 1
@@ -84,32 +84,6 @@ steps:
       insecure: true
       build_args:
         - APP_VERSION=${DRONE_TAG}
-    depends_on:
-      - test-build
-      - check-fmt
-      - lint
-      - test
-    volumes:
-      - name: docker-socket
-        path: /var/run/docker.sock
-    when:
-      event: tag
-
-  - name: dockerize-frontend
-    image: plugins/docker
-    environment:
-      DOCKER_BUILDKIT: 1
-    settings:
-      repo: localhost:8091/thek4n/paste-frontend
-      tags:
-        - latest
-        - ${DRONE_TAG}
-      dockerfile: frontend/Dockerfile
-      context: frontend
-      registry: localhost:8091
-      insecure: true
-      build_args:
-        - VITE_API_URL=https://paste.thek4n.ru
     depends_on:
       - test-build
       - check-fmt
@@ -140,8 +114,7 @@ steps:
     when:
       event: tag
     depends_on:
-      - dockerize-backend
-      - dockerize-frontend
+      - dockerize
 
 services:
   - name: redis-test
