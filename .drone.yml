@@ -75,12 +75,12 @@ steps:
     environment:
       DOCKER_BUILDKIT: 1
     settings:
-      repo: 192.168.50.5:8091/thek4n/paste
+      repo: localhost:8091/thek4n/paste
       tags:
         - latest
         - ${DRONE_TAG}
       dockerfile: Dockerfile
-      registry: 192.168.50.5:8091
+      registry: localhost:8091
       insecure: true
       build_args:
         - APP_VERSION=${DRONE_TAG}
@@ -89,6 +89,9 @@ steps:
       - check-fmt
       - lint
       - test
+    volumes:
+      - name: docker-socket
+        path: /var/run/docker.sock
     when:
       event: tag
 
@@ -97,13 +100,13 @@ steps:
     environment:
       DOCKER_BUILDKIT: 1
     settings:
-      repo: 192.168.50.5:8091/thek4n/paste-frontend
+      repo: localhost:8091/thek4n/paste-frontend
       tags:
         - latest
         - ${DRONE_TAG}
       dockerfile: frontend/Dockerfile
       context: frontend
-      registry: 192.168.50.5:8091
+      registry: localhost:8091
       insecure: true
       build_args:
         - VITE_API_URL=https://paste.thek4n.ru
@@ -112,6 +115,9 @@ steps:
       - check-fmt
       - lint
       - test
+    volumes:
+      - name: docker-socket
+        path: /var/run/docker.sock
     when:
       event: tag
 
@@ -150,3 +156,6 @@ volumes:
 - name: go-mod-cache
   host:
     path: /tmp/go-mod-cache
+- name: docker-socket
+  host:
+    path: /var/run/docker.sock
