@@ -1,0 +1,72 @@
+networks:
+  paste-network:
+
+volumes:
+  paste:
+
+services:
+  paste:
+    image: 'localhost:8091/thek4n/paste'
+    pull_policy: always
+
+    container_name: 'paste'
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    ports:
+      - 127.0.0.1:8082:80
+
+    networks:
+      - paste-network
+
+    environment:
+      REDIS_HOST: 'paste-db'
+
+    restart: unless-stopped
+
+    volumes:
+      - "/etc/timezone:/etc/timezone:ro"
+      - "/etc/localtime:/etc/localtime:ro"
+
+    healthcheck:
+      test: ["CMD", "/app/ping", "--method", "json", "http://localhost:80/health/"]
+      interval: 1m30s
+      timeout: 10s
+      retries: 5
+      start_period: 1s
+      start_interval: 3s
+
+  db:
+    image: redis
+    container_name: 'paste-db'
+    networks:
+      - paste-network
+    restart: unless-stopped
+    volumes:
+      - /data/services/paste/db:/data
+      - "/etc/timezone:/etc/timezone:ro"
+      - "/etc/localtime:/etc/localtime:ro"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1m30s
+      timeout: 10s
+      retries: 5
+      start_period: 1s
+      start_interval: 3s
+
+  frontend:
+    image: 'localhost:8091/thek4n/paste-frontend'
+    pull_policy: always
+
+    container_name: 'paste-frontend'
+
+    restart: unless-stopped
+
+    ports:
+      - 127.0.0.1:8085:80
+
+    depends_on:
+      paste:
+        condition: service_healthy
