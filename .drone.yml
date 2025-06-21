@@ -70,36 +70,60 @@ steps:
         - push
         - tag
 
-  - name: prod
-    image: alpine
+  - name: dockerize
+    image: plugins/docker
     environment:
-      SSH_KEY:
-        from_secret: ssh_key
-    commands:
-      - apk add --no-cache openssh
-      - mkdir -p ~/.ssh
-      - echo "$SSH_KEY" > ~/.ssh/id_rsa
-      - chmod 600 ~/.ssh/id_rsa
-      - |
-        ssh -o StrictHostKeyChecking=no thek4n@192.168.50.5 \
-        "cd ~/services/paste.thek4n.name && \
-          git fetch --all && \
-          git checkout deploy && \
-          git rebase ${DRONE_TAG} && \
-          docker compose up -d --build"
-
-      - shred -zun 2 ~/.ssh/id_rsa
-    when:
-      event: tag
+      DOCKER_BUILDKIT: 1
+    settings:
+      repo: 192.168.50.5:8091/thek4n/paste
+      tags:
+        - latest
+        - ${DRONE_TAG}
+      dockerfile: Dockerfile
+      registry: 192.168.50.5:8091
+      insecure: true
+      build_args:
+        APP_VERSION: ${DRONE_TAG}
     depends_on:
       - test-build
       - check-fmt
       - lint
       - test
+    when:
+      event: tag
+
+  # - name: prod
+  #   image: alpine
+  #   environment:
+  #     SSH_KEY:
+  #       from_secret: ssh_key
+  #   commands:
+  #     - apk add --no-cache openssh
+  #     - mkdir -p ~/.ssh
+  #     - echo "$SSH_KEY" > ~/.ssh/id_rsa
+  #     - chmod 600 ~/.ssh/id_rsa
+  #     - |
+  #       ssh -o StrictHostKeyChecking=no thek4n@192.168.50.5 \
+  #       "cd ~/services/paste.thek4n.name && \
+  #         git fetch --all && \
+  #         git checkout deploy && \
+  #         git rebase ${DRONE_TAG} && \
+  #         docker compose up -d --build"
+  #
+  #     - shred -zun 2 ~/.ssh/id_rsa
+  #   when:
+  #     event: tag
+  #   depends_on:
+  #     - test-build
+  #     - check-fmt
+  #     - lint
+  #     - test
 
 services:
   - name: redis-test
-    image: redis
+    image: redis:8
+    ports:
+      - 6379
 
 volumes:
 - name: go-build-cache
