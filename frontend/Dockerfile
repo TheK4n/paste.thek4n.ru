@@ -1,6 +1,6 @@
 FROM ubuntu:24.04 AS builder
 
-RUN apt update -y && apt install -y npm
+RUN apt-get update -y && apt-get install -y npm
 
 WORKDIR /build
 

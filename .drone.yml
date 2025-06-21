@@ -83,7 +83,7 @@ steps:
       registry: 192.168.50.5:8091
       insecure: true
       build_args:
-        APP_VERSION: ${DRONE_TAG}
+        - APP_VERSION=${DRONE_TAG}
     depends_on:
       - test-build
       - check-fmt
@@ -106,7 +106,7 @@ steps:
       registry: 192.168.50.5:8091
       insecure: true
       build_args:
-        VITE_API_URL: https://paste.thek4n.ru
+        - VITE_API_URL=https://paste.thek4n.ru
     depends_on:
       - test-build
       - check-fmt

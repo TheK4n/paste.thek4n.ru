@@ -15,7 +15,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # upx
 FROM ubuntu:22.04 AS upx
 
-RUN apt update -y && apt install -y --no-install-recommends upx
+RUN apt-get update -y && apt-get install -y --no-install-recommends upx
 
 COPY --from=builder /app/ /app
 
