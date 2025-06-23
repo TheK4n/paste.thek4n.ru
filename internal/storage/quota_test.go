@@ -30,13 +30,13 @@ func setupTestRedis(t *testing.T) *QuotaDB {
 	return db
 }
 
-func TestQuotaDB_CreateAndSubOrJustSub(t *testing.T) {
+func TestReduceQuota(t *testing.T) {
 	db := setupTestRedis(t)
 	ctx := context.Background()
 	key := "test_key"
 
 	t.Run("create new record", func(t *testing.T) {
-		err := db.CreateAndSubOrJustSub(ctx, key)
+		err := db.ReduceQuota(ctx, key)
 		assert.NoError(t, err)
 
 		val, err := db.Client.HGet(ctx, key, "countdown").Int()
@@ -49,7 +49,7 @@ func TestQuotaDB_CreateAndSubOrJustSub(t *testing.T) {
 	})
 
 	t.Run("decrement existing record", func(t *testing.T) {
-		err := db.CreateAndSubOrJustSub(ctx, key)
+		err := db.ReduceQuota(ctx, key)
 		assert.NoError(t, err)
 
 		val, err := db.Client.HGet(ctx, key, "countdown").Int()
