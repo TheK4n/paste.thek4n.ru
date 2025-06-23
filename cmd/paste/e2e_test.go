@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +38,6 @@ func TestCacheSuccess(t *testing.T) {
 
 	resp, err := ts.post("/", "test body")
 	require.NoError(t, err)
-	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "should return 200 OK for successful post")
 }
@@ -48,12 +48,10 @@ func TestGetReturnsCorrectBody(t *testing.T) {
 	expectedBody := "test body"
 	postResp, err := ts.post("/", expectedBody)
 	require.NoError(t, err)
-	defer postResp.Body.Close()
 
 	gotURL := mustReadBody(t, postResp.Body)
 	getResp, err := http.Get(gotURL)
 	require.NoError(t, err)
-	defer getResp.Body.Close()
 
 	assert.Equal(t, expectedBody, mustReadBody(t, getResp.Body), "retrieved body should match posted body")
 }
@@ -63,12 +61,10 @@ func TestClicksReturnsZeroAfterZeroRequests(t *testing.T) {
 
 	postResp, err := ts.post("/", "test body")
 	require.NoError(t, err)
-	defer postResp.Body.Close()
 
 	gotURL := mustReadBody(t, postResp.Body)
 	clicksResp, err := http.Get(gotURL + "/clicks/")
 	require.NoError(t, err)
-	defer clicksResp.Body.Close()
 
 	assert.Equal(t, "0", mustReadBody(t, clicksResp.Body), "clicks should be 0 for new paste")
 }
@@ -79,20 +75,17 @@ func TestReturnsCorrectClicksNumberAfterNumberOfRequests(t *testing.T) {
 	const expectedRequests = 3
 	postResp, err := ts.post("/", "test body")
 	require.NoError(t, err)
-	defer postResp.Body.Close()
 
 	gotURL := mustReadBody(t, postResp.Body)
 
 	// Make expectedRequests number of GET requests
 	for range expectedRequests {
-		resp, err := http.Get(gotURL)
+		_, err := http.Get(gotURL)
 		require.NoError(t, err)
-		resp.Body.Close()
 	}
 
 	clicksResp, err := http.Get(gotURL + "/clicks/")
 	require.NoError(t, err)
-	defer clicksResp.Body.Close()
 
 	assert.Equal(t, strconv.Itoa(expectedRequests), mustReadBody(t, clicksResp.Body))
 }
@@ -103,7 +96,6 @@ func TestUnprivilegedCacheBigBodyReturns413(t *testing.T) {
 	largeBody := bytes.Repeat([]byte("a"), config.UNPREVELEGED_MAX_BODY_SIZE+100)
 	resp, err := ts.post("/", string(largeBody))
 	require.NoError(t, err)
-	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusRequestEntityTooLarge, resp.StatusCode, "should reject too large bodies")
 }
@@ -114,20 +106,17 @@ func TestDisposableRecordRemovesAfterExpectedNumberOfRequests(t *testing.T) {
 	const disposableCount = 2
 	postResp, err := ts.post(fmt.Sprintf("/?disposable=%d", disposableCount), "test body")
 	require.NoError(t, err)
-	defer postResp.Body.Close()
 
 	gotURL := mustReadBody(t, postResp.Body)
 
 	for range disposableCount {
-		resp, err := http.Get(gotURL)
+		_, err := http.Get(gotURL)
 		require.NoError(t, err)
-		resp.Body.Close()
 	}
 
 	// Should be deleted after disposableCount requests
 	resp, err := http.Get(gotURL)
 	require.NoError(t, err)
-	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
@@ -138,7 +127,6 @@ func TestCachedRedirectsToExpectedURL(t *testing.T) {
 	expectedURL := "https://example.com"
 	postResp, err := ts.post("/?url=true", expectedURL)
 	require.NoError(t, err)
-	defer postResp.Body.Close()
 
 	gotURL := mustReadBody(t, postResp.Body)
 	client := &http.Client{
@@ -149,7 +137,6 @@ func TestCachedRedirectsToExpectedURL(t *testing.T) {
 
 	resp, err := client.Get(gotURL)
 	require.NoError(t, err)
-	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusSeeOther, resp.StatusCode)
 	assert.Equal(t, expectedURL, resp.Header.Get("Location"))
@@ -161,7 +148,6 @@ func TestRequestCustomKeyLength(t *testing.T) {
 	const expectedLength = 16
 	postResp, err := ts.post(fmt.Sprintf("/?len=%d", expectedLength), "test body")
 	require.NoError(t, err)
-	defer postResp.Body.Close()
 
 	gotURL := mustReadBody(t, postResp.Body)
 	assert.Equal(t, expectedLength, getKeyLength(gotURL), "key length should match requested length")
@@ -198,9 +184,9 @@ func (ts *testServer) post(path, body string) (*http.Response, error) {
 
 func mustReadBody(t *testing.T, r io.ReadCloser) string {
 	t.Helper()
-	defer r.Close()
 	b, err := io.ReadAll(r)
 	require.NoError(t, err)
+	require.NoError(t, r.Close())
 	return string(b)
 }
 

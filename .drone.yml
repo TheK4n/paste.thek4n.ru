@@ -20,6 +20,8 @@ steps:
 
   - name: check-fmt
     image: golang:1.23
+    environment:
+      GOFLAGS: -tags=integration,e2e
     commands:
       - go fmt ./...
       - git diff --exit-code
@@ -37,6 +39,8 @@ steps:
 
   - name: lint
     image: golangci/golangci-lint:latest
+    environment:
+      GOFLAGS: -tags=integration,e2e
     commands:
       - golangci-lint -v run --timeout 5m
     volumes:
@@ -55,7 +59,7 @@ steps:
     environment:
       REDIS_HOST: redis-test
     commands:
-      - ./make testall
+      - ./make test
     depends_on:
       - test-build
       - redis-test

@@ -3,7 +3,7 @@
 set -ue
 
 
-cmd_test() {
+cmd_testshort() {
     GOMAXPROCS=1 \
         go test \
             -tags integration,e2e \
@@ -46,9 +46,9 @@ if [ -z "${1+x}" ]; then
 fi
 
 case "${1}" in
-    testall) shift;  cmd_testall  "${@}" ;;
-    test) shift;     cmd_test  "${@}" ;;
-    build) shift;    cmd_build "${@}" ;;
+    test) shift;      cmd_testall  "${@}" ;;
+    testshort) shift; cmd_testshort  "${@}" ;;
+    build) shift;     cmd_build "${@}" ;;
 
     *) echo "No specified command ${*}" 1>&2 ;;
 esac
