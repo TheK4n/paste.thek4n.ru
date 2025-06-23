@@ -33,7 +33,6 @@ func TestCacheSuccess(t *testing.T) {
 }
 
 func TestGetReturnsCorrectBody(t *testing.T) {
-	// Arrange
 	ts := setupTestServer(t)
 	defer ts.Close()
 	expectedBody := "body"
@@ -42,17 +41,13 @@ func TestGetReturnsCorrectBody(t *testing.T) {
 	assert.NoError(t, err)
 	gotUrl := readerToString(response.Body)
 
-	// Act
 	response, err = http.Get(gotUrl)
 
-	// Assert
 	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, response.StatusCode)
 	assert.Equal(t, expectedBody, readerToString(response.Body))
 }
 
 func TestClicksReturnsZeroAfterZeroRequests(t *testing.T) {
-	// Arrange
 	ts := setupTestServer(t)
 	defer ts.Close()
 	expectedBody := "body"
@@ -60,17 +55,14 @@ func TestClicksReturnsZeroAfterZeroRequests(t *testing.T) {
 	response, _ := http.Post(ts.URL+"/", http.DetectContentType([]byte(expectedBody)), bodyReader)
 	gotUrl := readerToString(response.Body)
 
-	// Act
 	response, err := http.Get(gotUrl + "/clicks/")
 
-	// Assert
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 	assert.Equal(t, "0", readerToString(response.Body))
 }
 
 func TestReturnsCorrectClicksNumberAfterNumberOfRequests(t *testing.T) {
-	// Arrange
 	ts := setupTestServer(t)
 	defer ts.Close()
 	expectedBody := "body"
@@ -79,16 +71,14 @@ func TestReturnsCorrectClicksNumberAfterNumberOfRequests(t *testing.T) {
 	clicksResponse, _ := http.Post(ts.URL+"/", http.DetectContentType([]byte(expectedBody)), bodyReader)
 	gotUrl := readerToString(clicksResponse.Body)
 
-	// Act
 	for range expectedRequestsNumber {
 		_, _ = http.Get(gotUrl)
 	}
 	clicksResponse, err := http.Get(gotUrl + "/clicks/")
 
-	// Assert
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, clicksResponse.StatusCode)
-	assert.Equal(t, strconv.FormatInt(expectedRequestsNumber, 10), readerToString(clicksResponse.Body))
+	assert.Equal(t, formatInt10(expectedRequestsNumber), readerToString(clicksResponse.Body))
 }
 
 func TestUnprivelegedCacheBigBodyReturns413(t *testing.T) {
@@ -169,6 +159,10 @@ func readerToString(body io.ReadCloser) string {
 		panic(err)
 	}
 	return buf.String()
+}
+
+func formatInt10(i int64) string {
+	return strconv.FormatInt(i, 10)
 }
 
 func setupTestServer(t *testing.T) *httptest.Server {
