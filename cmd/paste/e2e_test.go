@@ -167,6 +167,31 @@ func TestRequestCustomKeyLength(t *testing.T) {
 	assert.Equal(t, expectedLength, getKeyLength(gotURL), "key length should match requested length")
 }
 
+func TestCacheWithExpirationTimeRemovesAfterThisTime(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
+	}
+
+	ts := setupTestServer(t)
+	defer ts.Close()
+	expectedBody := "body"
+	bodyReader := strings.NewReader(expectedBody)
+	ttl := "3s"
+	resp, err := http.Post(fmt.Sprintf("%s/?ttl=%s", ts.URL, ttl), http.DetectContentType([]byte(expectedBody)), bodyReader)
+	assert.NoError(t, err)
+	gotUrl := mustReadBody(t, resp.Body)
+
+	resp, err = http.Get(gotUrl)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	time.Sleep(3500 * time.Millisecond)
+
+	resp, err = http.Get(gotUrl)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
 func (ts *testServer) post(path, body string) (*http.Response, error) {
 	return http.Post(ts.URL+path, http.DetectContentType([]byte(body)), strings.NewReader(body))
 }
