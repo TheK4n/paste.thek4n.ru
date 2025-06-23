@@ -29,17 +29,63 @@ type testServer struct {
 	quotaDB   *storage.QuotaDB
 }
 
-func TestMain(m *testing.M) {
-	os.Exit(m.Run())
-}
-
-func TestCacheSuccess(t *testing.T) {
+func TestCache(t *testing.T) {
 	ts := setupTestServer(t)
 
-	resp, err := ts.post("/", "test body")
-	require.NoError(t, err)
+	t.Run("cache returns 200 ok", func(t *testing.T) {
+		resp, err := ts.post("/", "test body")
+		require.NoError(t, err)
 
-	assert.Equal(t, http.StatusOK, resp.StatusCode, "should return 200 OK for successful post")
+		assert.Equal(t,
+			http.StatusOK, resp.StatusCode,
+			"should return 200 OK for successful post",
+		)
+	})
+
+	t.Run("cache with expiration time removes key after this time", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("skipping test in short mode.")
+		}
+
+		expectedBody := "body"
+		resp, err := ts.post("/?ttl=3s", expectedBody)
+		require.NoError(t, err)
+		gotUrl := mustReadBody(t, resp.Body)
+
+		resp, err = http.Get(gotUrl)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		time.Sleep(3500 * time.Millisecond)
+
+		resp, err = http.Get(gotUrl)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	})
+
+	t.Run("cache request custom key length", func(t *testing.T) {
+		const expectedLength = 16
+		postResp, err := ts.post(fmt.Sprintf("/?len=%d", expectedLength), "test body")
+		require.NoError(t, err)
+
+		gotURL := mustReadBody(t, postResp.Body)
+		assert.Equal(t,
+			expectedLength, getKeyLength(t, gotURL),
+			"key length should match requested length",
+		)
+	})
+
+	t.Run("unpriveleged cache with big body returns 413", func(t *testing.T) {
+		largeBody := bytes.Repeat([]byte("a"), config.UNPREVELEGED_MAX_BODY_SIZE+100)
+
+		resp, err := ts.post("/", string(largeBody))
+		require.NoError(t, err)
+
+		assert.Equal(t,
+			http.StatusRequestEntityTooLarge, resp.StatusCode,
+			"should reject too large bodies",
+		)
+	})
 }
 
 func TestGetReturnsCorrectBody(t *testing.T) {
@@ -90,16 +136,6 @@ func TestReturnsCorrectClicksNumberAfterNumberOfRequests(t *testing.T) {
 	assert.Equal(t, strconv.Itoa(expectedRequests), mustReadBody(t, clicksResp.Body))
 }
 
-func TestUnprivilegedCacheBigBodyReturns413(t *testing.T) {
-	ts := setupTestServer(t)
-
-	largeBody := bytes.Repeat([]byte("a"), config.UNPREVELEGED_MAX_BODY_SIZE+100)
-	resp, err := ts.post("/", string(largeBody))
-	require.NoError(t, err)
-
-	assert.Equal(t, http.StatusRequestEntityTooLarge, resp.StatusCode, "should reject too large bodies")
-}
-
 func TestDisposableRecordRemovesAfterExpectedNumberOfRequests(t *testing.T) {
 	ts := setupTestServer(t)
 
@@ -142,42 +178,6 @@ func TestCachedRedirectsToExpectedURL(t *testing.T) {
 	assert.Equal(t, expectedURL, resp.Header.Get("Location"))
 }
 
-func TestRequestCustomKeyLength(t *testing.T) {
-	ts := setupTestServer(t)
-
-	const expectedLength = 16
-	postResp, err := ts.post(fmt.Sprintf("/?len=%d", expectedLength), "test body")
-	require.NoError(t, err)
-
-	gotURL := mustReadBody(t, postResp.Body)
-	assert.Equal(t, expectedLength, getKeyLength(gotURL), "key length should match requested length")
-}
-
-func TestCacheWithExpirationTimeRemovesAfterThisTime(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping test in short mode.")
-	}
-
-	ts := setupTestServer(t)
-	defer ts.Close()
-	expectedBody := "body"
-	bodyReader := strings.NewReader(expectedBody)
-	ttl := "3s"
-	resp, err := http.Post(fmt.Sprintf("%s/?ttl=%s", ts.URL, ttl), http.DetectContentType([]byte(expectedBody)), bodyReader)
-	assert.NoError(t, err)
-	gotUrl := mustReadBody(t, resp.Body)
-
-	resp, err = http.Get(gotUrl)
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-	time.Sleep(3500 * time.Millisecond)
-
-	resp, err = http.Get(gotUrl)
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-}
-
 func (ts *testServer) post(path, body string) (*http.Response, error) {
 	return http.Post(ts.URL+path, http.DetectContentType([]byte(body)), strings.NewReader(body))
 }
@@ -190,11 +190,10 @@ func mustReadBody(t *testing.T, r io.ReadCloser) string {
 	return string(b)
 }
 
-func getKeyLength(url string) int {
+func getKeyLength(t *testing.T, url string) int {
+	t.Helper()
 	parts := strings.Split(url, "/")
-	if len(parts) < 4 {
-		return 0
-	}
+	require.True(t, len(parts) >= 4, "Invalid url")
 	return len(parts[3])
 }
 

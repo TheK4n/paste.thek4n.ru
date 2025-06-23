@@ -6,26 +6,26 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCompression(t *testing.T) {
 	t.Parallel()
 	t.Run("compress and decompress", func(t *testing.T) {
 		data := []byte("test data to compress")
-
 		compressed, err := compress(data)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, isCompressed(compressed))
 
 		decompressed, err := decompress(compressed)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, data, decompressed)
 	})
 
 	t.Run("decompress invalid data", func(t *testing.T) {
 		_, err := decompress([]byte("invalid gzip data"))
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -49,9 +49,9 @@ func FuzzIsCompressed(f *testing.F) {
 	var buf bytes.Buffer
 	w := gzip.NewWriter(&buf)
 	_, err := w.Write([]byte("test data"))
-	assert.NoError(f, err)
+	require.NoError(f, err)
 	err = w.Close()
-	assert.NoError(f, err)
+	require.NoError(f, err)
 	f.Add(buf.Bytes())
 
 	f.Fuzz(func(t *testing.T, data []byte) {
