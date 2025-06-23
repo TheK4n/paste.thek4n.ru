@@ -1,5 +1,3 @@
-bin/*
-!bin/.gitkeep
-!bin/apikeys
-!bin/make
+bin/paste
+bin/ping
 coverage.out

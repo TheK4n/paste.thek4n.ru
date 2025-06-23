@@ -114,11 +114,11 @@ Non authorized has quota 50 post requests in 24 hours
 Generate new api key:
 ```sh
 export REDIS_HOST=localhost  # Host of redis db or container
-./apikeys gen                # generate and add new api key
-./apikeys list               # list of api keys
-./apikeys revoke "key"       # revoke (invalidate) api key
-./apikeys reauthorize "key"  # reauthorize api key
-./apikeys rm "key"           # remove api key
+./tools/apikeys gen                # generate and add new api key
+./tools/apikeys list               # list of api keys
+./tools/apikeys revoke "key"       # revoke (invalidate) api key
+./tools/apikeys reauthorize "key"  # reauthorize api key
+./tools/apikeys rm "key"           # remove api key
 ```
 
 
