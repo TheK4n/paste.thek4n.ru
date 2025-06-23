@@ -20,7 +20,7 @@ func TestCacheWithExpirationTimeRemovesAfterThisTime(t *testing.T) {
 	ttl := "3s"
 	resp, err := http.Post(fmt.Sprintf("%s/?ttl=%s", ts.URL, ttl), http.DetectContentType([]byte(expectedBody)), bodyReader)
 	assert.NoError(t, err)
-	gotUrl := readerToString(resp.Body)
+	gotUrl := mustReadBody(t, resp.Body)
 
 	resp, err = http.Get(gotUrl)
 	assert.NoError(t, err)
