@@ -4,32 +4,19 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"fmt"
-	"io"
 	"net/http"
-	"net/http/httptest"
-	"os"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/thek4n/paste.thek4n.name/internal/config"
-	"github.com/thek4n/paste.thek4n.name/internal/handlers"
-	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
 
-type testServer struct {
-	*httptest.Server
-	db        *storage.KeysDB
-	apiKeysDB *storage.APIKeysDB
-	quotaDB   *storage.QuotaDB
-}
-
 func TestCache(t *testing.T) {
+	t.Parallel()
 	ts := setupTestServer(t)
 
 	t.Run("cache returns 200 ok", func(t *testing.T) {
@@ -38,7 +25,6 @@ func TestCache(t *testing.T) {
 
 		assert.Equal(t,
 			http.StatusOK, resp.StatusCode,
-			"should return 200 OK for successful post",
 		)
 	})
 
@@ -88,151 +74,105 @@ func TestCache(t *testing.T) {
 	})
 }
 
-func TestGetReturnsCorrectBody(t *testing.T) {
+func TestGet(t *testing.T) {
+	t.Parallel()
 	ts := setupTestServer(t)
 
-	expectedBody := "test body"
-	postResp, err := ts.post("/", expectedBody)
-	require.NoError(t, err)
-
-	gotURL := mustReadBody(t, postResp.Body)
-	getResp, err := http.Get(gotURL)
-	require.NoError(t, err)
-
-	assert.Equal(t, expectedBody, mustReadBody(t, getResp.Body), "retrieved body should match posted body")
-}
-
-func TestClicksReturnsZeroAfterZeroRequests(t *testing.T) {
-	ts := setupTestServer(t)
-
-	postResp, err := ts.post("/", "test body")
-	require.NoError(t, err)
-
-	gotURL := mustReadBody(t, postResp.Body)
-	clicksResp, err := http.Get(gotURL + "/clicks/")
-	require.NoError(t, err)
-
-	assert.Equal(t, "0", mustReadBody(t, clicksResp.Body), "clicks should be 0 for new paste")
-}
-
-func TestReturnsCorrectClicksNumberAfterNumberOfRequests(t *testing.T) {
-	ts := setupTestServer(t)
-
-	const expectedRequests = 3
-	postResp, err := ts.post("/", "test body")
-	require.NoError(t, err)
-
-	gotURL := mustReadBody(t, postResp.Body)
-
-	// Make expectedRequests number of GET requests
-	for range expectedRequests {
-		_, err := http.Get(gotURL)
+	t.Run("get after cache returns correct body", func(t *testing.T) {
+		expectedBody := "test body"
+		postResp, err := ts.post("/", expectedBody)
 		require.NoError(t, err)
-	}
+		gotURL := mustReadBody(t, postResp.Body)
 
-	clicksResp, err := http.Get(gotURL + "/clicks/")
-	require.NoError(t, err)
-
-	assert.Equal(t, strconv.Itoa(expectedRequests), mustReadBody(t, clicksResp.Body))
-}
-
-func TestDisposableRecordRemovesAfterExpectedNumberOfRequests(t *testing.T) {
-	ts := setupTestServer(t)
-
-	const disposableCount = 2
-	postResp, err := ts.post(fmt.Sprintf("/?disposable=%d", disposableCount), "test body")
-	require.NoError(t, err)
-
-	gotURL := mustReadBody(t, postResp.Body)
-
-	for range disposableCount {
-		_, err := http.Get(gotURL)
+		getResp, err := http.Get(gotURL)
 		require.NoError(t, err)
-	}
 
-	// Should be deleted after disposableCount requests
-	resp, err := http.Get(gotURL)
-	require.NoError(t, err)
-
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		assert.Equal(t,
+			expectedBody,
+			mustReadBody(t, getResp.Body),
+			"retrieved body should match posted body",
+		)
+	})
 }
 
-func TestCachedRedirectsToExpectedURL(t *testing.T) {
+func TestGetClicks(t *testing.T) {
+	t.Parallel()
 	ts := setupTestServer(t)
 
-	expectedURL := "https://example.com"
-	postResp, err := ts.post("/?url=true", expectedURL)
-	require.NoError(t, err)
+	t.Run("get clicks after zero requests returns zero clicks", func(t *testing.T) {
+		postResp, err := ts.post("/", "test body")
+		require.NoError(t, err)
+		gotURL := mustReadBody(t, postResp.Body)
 
-	gotURL := mustReadBody(t, postResp.Body)
-	client := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
+		clicksResp, err := http.Get(gotURL + "/clicks/")
+		require.NoError(t, err)
 
-	resp, err := client.Get(gotURL)
-	require.NoError(t, err)
+		assert.Equal(t,
+			"0", mustReadBody(t, clicksResp.Body),
+			"clicks should be 0 for new paste",
+		)
+	})
 
-	assert.Equal(t, http.StatusSeeOther, resp.StatusCode)
-	assert.Equal(t, expectedURL, resp.Header.Get("Location"))
+	t.Run("get clicks after number of clicks returns correct clicks", func(t *testing.T) {
+		const expectedRequests = 3
+		postResp, err := ts.post("/", "test body")
+		require.NoError(t, err)
+		gotURL := mustReadBody(t, postResp.Body)
+
+		for range expectedRequests {
+			_, err := http.Get(gotURL)
+			require.NoError(t, err)
+		}
+
+		clicksResp, err := http.Get(gotURL + "/clicks/")
+		require.NoError(t, err)
+		assert.Equal(t,
+			strconv.Itoa(expectedRequests), mustReadBody(t, clicksResp.Body),
+		)
+	})
 }
 
-func (ts *testServer) post(path, body string) (*http.Response, error) {
-	return http.Post(ts.URL+path, http.DetectContentType([]byte(body)), strings.NewReader(body))
+func TestCacheDisposable(t *testing.T) {
+	t.Parallel()
+	ts := setupTestServer(t)
+
+	t.Run("disposable record will be removed after expected number of get requests", func(t *testing.T) {
+		const disposableCount = 3
+		postResp, err := ts.post(fmt.Sprintf("/?disposable=%d", disposableCount), "test body")
+		require.NoError(t, err)
+		gotURL := mustReadBody(t, postResp.Body)
+
+		for range disposableCount {
+			resp, err := http.Get(gotURL)
+			require.NoError(t, err)
+			require.Equal(t,
+				http.StatusOK, resp.StatusCode,
+				"shoudn`t be removed yet",
+			)
+		}
+
+		resp, err := http.Get(gotURL)
+		require.NoError(t, err)
+		assert.Equal(t,
+			http.StatusNotFound, resp.StatusCode,
+			"should be removed",
+		)
+	})
 }
 
-func mustReadBody(t *testing.T, r io.ReadCloser) string {
-	t.Helper()
-	b, err := io.ReadAll(r)
-	require.NoError(t, err)
-	require.NoError(t, r.Close())
-	return string(b)
-}
+func TestCacheURL(t *testing.T) {
+	t.Parallel()
+	ts := setupTestServer(t)
 
-func getKeyLength(t *testing.T, url string) int {
-	t.Helper()
-	parts := strings.Split(url, "/")
-	require.True(t, len(parts) >= 4, "Invalid url")
-	return len(parts[3])
-}
+	t.Run("get cached url redirects to expected location", func(t *testing.T) {
+		expectedURL := "https://example.com"
+		postResp, err := ts.post("/?url=true", expectedURL)
+		require.NoError(t, err)
+		gotURL := mustReadBody(t, postResp.Body)
 
-func setupTestServer(t *testing.T) *testServer {
-	t.Helper()
-
-	redisHost := os.Getenv("REDIS_HOST")
-	if redisHost == "" {
-		redisHost = "localhost"
-	}
-	redisPort := 6379
-
-	db, err := storage.InitKeysStorageDB(redisHost, redisPort)
-	require.NoError(t, err, "failed to connect to keys storage")
-
-	apikeysDb, err := storage.InitAPIKeysStorageDB(redisHost, redisPort)
-	require.NoError(t, err, "failed to connect to api keys storage")
-
-	quotaDb, err := storage.InitQuotaStorageDB(redisHost, redisPort)
-	require.NoError(t, err, "failed to connect to quota storage")
-
-	ctx := context.Background()
-	require.NoError(t, db.Client.FlushDB(ctx).Err())
-	require.NoError(t, apikeysDb.Client.FlushDB(ctx).Err())
-	require.NoError(t, quotaDb.Client.FlushDB(ctx).Err())
-
-	opts := Options{Health: true}
-
-	app := handlers.Application{
-		Version:   "test",
-		DB:        *db,
-		ApiKeysDB: *apikeysDb,
-		QuotaDB:   *quotaDb,
-	}
-
-	return &testServer{
-		Server:    httptest.NewServer(getMux(&app, &opts)),
-		db:        db,
-		apiKeysDB: apikeysDb,
-		quotaDB:   quotaDb,
-	}
+		resp, err := noRedirectGet(gotURL)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusSeeOther, resp.StatusCode)
+		assert.Equal(t, expectedURL, resp.Header.Get("Location"))
+	})
 }
