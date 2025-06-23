@@ -1,4 +1,4 @@
-//go:build integration
+///go:build integration
 
 package storage
 
@@ -45,7 +45,7 @@ func TestQuotaDB_CreateAndSubOrJustSub(t *testing.T) {
 		ttl := db.Client.TTL(ctx, key).Val()
 
 		assert.True(t, ttl > 0)
-		assert.True(t, ttl <= config.QUOTA_PERIOD)
+		assert.True(t, ttl <= config.QUOTA_RESET_PERIOD)
 	})
 
 	t.Run("decrement existing record", func(t *testing.T) {
