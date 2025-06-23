@@ -145,11 +145,5 @@ GOMAXPROCS=1 go test -tags integration,e2e -count=1 -cover -covermode=atomic ./.
 * Without tags - Only unit tests
 * `integration` - Integration tests
 * `e2e` - End-to-end tests
-* `e2ettl` - End-to-end tests ttl urls (long execution)
-
-Run tests e2ettl:
-```sh
-GOMAXPROCS=1 go test -tags e2e,e2ettl -count=1 -cover -covermode=atomic ./...
-```
 
 <h1 align="center"><a href="#top">▲</a></h1>

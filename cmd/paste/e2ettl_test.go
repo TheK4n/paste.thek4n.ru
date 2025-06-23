@@ -1,4 +1,4 @@
-//go:build e2e && e2ettl
+//go:build e2e
 
 package main
 
@@ -13,6 +13,10 @@ import (
 )
 
 func TestCacheWithExpirationTimeRemovesAfterThisTime(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode.")
+	}
+
 	ts := setupTestServer(t)
 	defer ts.Close()
 	expectedBody := "body"

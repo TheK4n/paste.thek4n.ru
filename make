@@ -7,6 +7,8 @@ cmd_test() {
     GOMAXPROCS=1 \
         go test \
             -tags integration,e2e \
+            -short \
+            -failfast \
             -count=1 \
             -race \
             -cover -covermode=atomic \
@@ -17,7 +19,8 @@ cmd_testall() {
     cover_profile_file="$(mktemp)"
     GOMAXPROCS=1 \
         go test \
-            -tags integration,e2e,e2ettl \
+            -tags integration,e2e \
+            -failfast \
             -count=1 \
             -race \
             -cover -covermode=atomic \
