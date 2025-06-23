@@ -122,6 +122,14 @@ export REDIS_HOST=localhost  # Host of redis db or container
 ```
 
 
+## Building
+
+```sh
+./make
+```
+Output in directory `bin`
+
+
 ## Tests
 
 Before test you need to setup redis db. In docker for example:
