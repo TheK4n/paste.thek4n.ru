@@ -4,6 +4,7 @@ package keys
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -14,110 +15,119 @@ import (
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
 
-func TestRequestedKeyAndGotKeyAreEqual(t *testing.T) {
-	t.Parallel()
-
-	db := setupTestKeysDB(t)
-	key := "test_key"
-	body := []byte("test body")
-	timeout := 1 * time.Second
-
-	gotKey, err := Cache(db, timeout, key, 0*time.Second, len(key), storage.KeyRecord{Body: body})
-
-	require.NoError(t, err)
-	assert.Equal(t, key, gotKey)
+func TestMain(m *testing.M) {
+	setup()
+	code := m.Run()
+	os.Exit(code)
 }
 
-func TestCachedAndGottenBodyAreEqual(t *testing.T) {
-	t.Parallel()
-
-	db := setupTestKeysDB(t)
-	key := "test_key"
-	body := []byte("test body")
-	timeout := 1 * time.Second
-
-	_, errCaching := Cache(db, timeout, key, 0*time.Second, len(key), storage.KeyRecord{Body: body})
-	result, errGetting := Get(db, key, timeout)
-
-	require.NoError(t, errCaching)
-	require.NoError(t, errGetting)
-	assert.Equal(t, body, result.Body)
+func setup() {
+	dbHost := getRedisHost()
+	dbPort := 6379
+	db, _ := storage.InitKeysStorageDB(dbHost, dbPort)
+	_ = db.Client.FlushDB(context.Background()).Err()
 }
 
-func TestNotExistingKeyIsNotFound(t *testing.T) {
-	t.Parallel()
-
-	db := setupTestKeysDB(t)
-	key := "nonexistent_key"
-	timeout := 1 * time.Second
-
-	_, err := Get(db, key, timeout)
-
-	require.Error(t, err)
-	assert.Equal(t, storage.ErrKeyNotFound, err)
-}
-
-func TestGetClicksEqualNumberOfGetRequests(t *testing.T) {
-	db := setupTestKeysDB(t)
-	key := "test_key"
-	body := []byte("test body")
-	requestNumber := 3
-	timeout := 1 * time.Second
-	_, errCaching := Cache(db, timeout, key, 0*time.Second, len(key), storage.KeyRecord{Body: body})
-	var errGetting error
-
-	for range requestNumber {
-		_, errGetting = Get(db, key, timeout)
-	}
-
-	require.NoError(t, errCaching)
-	require.NoError(t, errGetting)
-	clicks, err := GetClicks(db, key, timeout)
-	require.NoError(t, err)
-	assert.Equal(t, requestNumber, clicks)
-}
-
-func TestGetClicksForNotExistingKeyIsNotFound(t *testing.T) {
-	db := setupTestKeysDB(t)
-	key := "nonexistent_key"
-	timeout := 1 * time.Second
-
-	_, err := GetClicks(db, key, timeout)
-
-	assert.Error(t, err)
-	assert.Equal(t, storage.ErrKeyNotFound, err)
-}
-
-func TestRequestedKeyAlreadyTaken(t *testing.T) {
+func TestCache(t *testing.T) {
 	db := setupTestKeysDB(t)
 	timeout := 1 * time.Second
-	requestedKey := "taken_key"
-	record := storage.KeyRecord{Body: []byte("test")}
-	_, errCaching := Cache(db, timeout, requestedKey, 0*time.Second, 10, record)
-
-	_, errCachingSecond := Cache(db, timeout, requestedKey, 0*time.Second, 10, record)
-
-	require.NoError(t, errCaching)
-	assert.Error(t, errCachingSecond)
-	assert.Equal(t, ErrKeyAlreadyTaken, errCachingSecond)
-}
-
-func TestSuccessfulCacheWithGeneratedKey(t *testing.T) {
-	db := setupTestKeysDB(t)
-	timeout := 1 * time.Second
-	requestedKey := ""
-	keyLength := 10
+	ttl := 0 * time.Second
 	record := storage.KeyRecord{Body: []byte("test")}
 
-	gotKey, errCaching := Cache(db, timeout, requestedKey, 0*time.Second, keyLength, record)
+	t.Run("requested key and got key are equal", func(t *testing.T) {
+		t.Parallel()
 
-	require.NoError(t, errCaching)
-	assert.NotEmpty(t, gotKey)
-	assert.Len(t, gotKey, keyLength)
+		expectedKey := getKeyPrefix(t, "test_key")
+		gotKey, err := Cache(db, timeout, expectedKey, ttl, 0, record)
 
-	result, err := Get(db, gotKey, timeout)
-	require.NoError(t, err)
-	assert.Equal(t, record.Body, result.Body)
+		require.NoError(t, err)
+		assert.Equal(t, expectedKey, gotKey)
+	})
+
+	t.Run("attempt to take already taken key returns error", func(t *testing.T) {
+		t.Parallel()
+
+		expectedKey := getKeyPrefix(t, "taken_key")
+		_, errCaching := Cache(db, timeout, expectedKey, ttl, 10, record)
+
+		_, errCachingSecond := Cache(db, timeout, expectedKey, ttl, 10, record)
+
+		require.NoError(t, errCaching)
+		assert.Error(t, errCachingSecond)
+		assert.Equal(t, ErrKeyAlreadyTaken, errCachingSecond)
+	})
+
+	t.Run("cache with empty key returns generated key with requested length", func(t *testing.T) {
+		t.Parallel()
+
+		requestedKey := ""
+		keyLength := 10
+		gotKey, errCaching := Cache(db, timeout, requestedKey, ttl, keyLength, record)
+		require.NoError(t, errCaching)
+
+		assert.Len(t, gotKey, keyLength)
+	})
+
+	t.Run("get by generated random key has expected body", func(t *testing.T) {
+		t.Parallel()
+
+		requestedKey := ""
+		keyLength := 10
+		gotKey, errCaching := Cache(db, timeout, requestedKey, ttl, keyLength, record)
+		require.NoError(t, errCaching)
+
+		result, err := Get(db, gotKey, timeout)
+		require.NoError(t, err)
+		assert.Equal(t, record.Body, result.Body)
+	})
+}
+
+func TestGet(t *testing.T) {
+	db := setupTestKeysDB(t)
+	record := storage.KeyRecord{Body: []byte("test")}
+	timeout := 1 * time.Second
+	ttl := 0 * time.Second
+
+	t.Run("requested key and got key are equal", func(t *testing.T) {
+		t.Parallel()
+
+		key := "nonexistent_key"
+		timeout := 1 * time.Second
+
+		_, err := Get(db, key, timeout)
+
+		require.Error(t, err)
+		assert.Equal(t, storage.ErrKeyNotFound, err)
+	})
+
+	t.Run("record clicks equal number of get requests", func(t *testing.T) {
+		t.Parallel()
+
+		expectedKey := getKeyPrefix(t, "taken_key")
+		requestNumber := 3
+		_, errCaching := Cache(db, timeout, expectedKey, ttl, len(expectedKey), record)
+		require.NoError(t, errCaching)
+
+		for range requestNumber {
+			_, err := Get(db, expectedKey, timeout)
+			require.NoError(t, err)
+		}
+
+		clicks, err := GetClicks(db, expectedKey, timeout)
+		require.NoError(t, err)
+		assert.Equal(t, requestNumber, clicks)
+	})
+
+	t.Run("get by non existent key returns error", func(t *testing.T) {
+		t.Parallel()
+
+		key := "nonexistent_key"
+
+		_, err := GetClicks(db, key, timeout)
+
+		assert.Error(t, err)
+		assert.Equal(t, storage.ErrKeyNotFound, err)
+	})
 }
 
 func setupTestKeysDB(t *testing.T) storage.KeysDB {
@@ -128,9 +138,6 @@ func setupTestKeysDB(t *testing.T) storage.KeysDB {
 	db, err := storage.InitKeysStorageDB(dbHost, dbPort)
 	require.NoError(t, err, "Failed to setup keys db")
 
-	err = db.Client.FlushDB(context.Background()).Err()
-	require.NoError(t, err, "Failed to flush db")
-
 	return *db
 }
 
@@ -140,5 +147,8 @@ func getRedisHost() string {
 		return "localhost"
 	}
 	return dbHost
+}
 
+func getKeyPrefix(t *testing.T, key string) string {
+	return fmt.Sprintf("%s:%s", t.Name(), key)
 }

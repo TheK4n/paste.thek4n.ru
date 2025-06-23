@@ -11,6 +11,7 @@ import (
 
 func TestCompression(t *testing.T) {
 	t.Parallel()
+
 	t.Run("compress and decompress", func(t *testing.T) {
 		data := []byte("test data to compress")
 		compressed, err := compress(data)
