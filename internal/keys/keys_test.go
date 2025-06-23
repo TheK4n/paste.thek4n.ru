@@ -10,28 +10,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
 
-func setupTestKeysDB(t *testing.T) *storage.KeysDB {
-	t.Helper()
-	dbHost := os.Getenv("REDIS_HOST")
-	if dbHost == "" {
-		dbHost = "localhost"
-	}
-	dbPort := 6379
-
-	db, err := storage.InitKeysStorageDB(dbHost, dbPort)
-	require.NoError(t, err, "Failed to setup keys db")
-
-	err = db.Client.FlushDB(context.Background()).Err()
-	require.NoError(t, err, "Failed to flush db")
-
-	return db
-}
-
 func TestRequestedKeyAndGotKeyAreEqual(t *testing.T) {
-	db := *setupTestKeysDB(t)
+	t.Parallel()
+
+	db := setupTestKeysDB(t)
 	key := "test_key"
 	body := []byte("test body")
 	timeout := 1 * time.Second
@@ -43,7 +29,9 @@ func TestRequestedKeyAndGotKeyAreEqual(t *testing.T) {
 }
 
 func TestCachedAndGottenBodyAreEqual(t *testing.T) {
-	db := *setupTestKeysDB(t)
+	t.Parallel()
+
+	db := setupTestKeysDB(t)
 	key := "test_key"
 	body := []byte("test body")
 	timeout := 1 * time.Second
@@ -57,7 +45,9 @@ func TestCachedAndGottenBodyAreEqual(t *testing.T) {
 }
 
 func TestNotExistingKeyIsNotFound(t *testing.T) {
-	db := *setupTestKeysDB(t)
+	t.Parallel()
+
+	db := setupTestKeysDB(t)
 	key := "nonexistent_key"
 	timeout := 1 * time.Second
 
@@ -68,7 +58,7 @@ func TestNotExistingKeyIsNotFound(t *testing.T) {
 }
 
 func TestGetClicksEqualNumberOfGetRequests(t *testing.T) {
-	db := *setupTestKeysDB(t)
+	db := setupTestKeysDB(t)
 	key := "test_key"
 	body := []byte("test body")
 	requestNumber := 3
@@ -88,7 +78,7 @@ func TestGetClicksEqualNumberOfGetRequests(t *testing.T) {
 }
 
 func TestGetClicksForNotExistingKeyIsNotFound(t *testing.T) {
-	db := *setupTestKeysDB(t)
+	db := setupTestKeysDB(t)
 	key := "nonexistent_key"
 	timeout := 1 * time.Second
 
@@ -99,7 +89,7 @@ func TestGetClicksForNotExistingKeyIsNotFound(t *testing.T) {
 }
 
 func TestRequestedKeyAlreadyTaken(t *testing.T) {
-	db := *setupTestKeysDB(t)
+	db := setupTestKeysDB(t)
 	timeout := 1 * time.Second
 	requestedKey := "taken_key"
 	record := storage.KeyRecord{Body: []byte("test")}
@@ -113,7 +103,7 @@ func TestRequestedKeyAlreadyTaken(t *testing.T) {
 }
 
 func TestSuccessfulCacheWithGeneratedKey(t *testing.T) {
-	db := *setupTestKeysDB(t)
+	db := setupTestKeysDB(t)
 	timeout := 1 * time.Second
 	requestedKey := ""
 	keyLength := 10
@@ -128,4 +118,27 @@ func TestSuccessfulCacheWithGeneratedKey(t *testing.T) {
 	result, err := Get(db, gotKey, timeout)
 	require.NoError(t, err)
 	assert.Equal(t, record.Body, result.Body)
+}
+
+func setupTestKeysDB(t *testing.T) storage.KeysDB {
+	t.Helper()
+	dbHost := getRedisHost()
+	dbPort := 6379
+
+	db, err := storage.InitKeysStorageDB(dbHost, dbPort)
+	require.NoError(t, err, "Failed to setup keys db")
+
+	err = db.Client.FlushDB(context.Background()).Err()
+	require.NoError(t, err, "Failed to flush db")
+
+	return *db
+}
+
+func getRedisHost() string {
+	dbHost := os.Getenv("REDIS_HOST")
+	if dbHost == "" {
+		return "localhost"
+	}
+	return dbHost
+
 }

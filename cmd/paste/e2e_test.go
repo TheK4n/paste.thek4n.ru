@@ -12,14 +12,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/thek4n/paste.thek4n.name/internal/config"
 )
 
 func TestCache(t *testing.T) {
-	t.Parallel()
 	ts := setupTestServer(t)
 
 	t.Run("cache returns 200 ok", func(t *testing.T) {
+		t.Parallel()
+
 		resp, err := ts.post("/", "test body")
 		require.NoError(t, err)
 
@@ -29,6 +31,8 @@ func TestCache(t *testing.T) {
 	})
 
 	t.Run("cache with expiration time removes key after this time", func(t *testing.T) {
+		t.Parallel()
+
 		if testing.Short() {
 			t.Skip("skipping test in short mode.")
 		}
@@ -50,6 +54,8 @@ func TestCache(t *testing.T) {
 	})
 
 	t.Run("cache request custom key length", func(t *testing.T) {
+		t.Parallel()
+
 		const expectedLength = 16
 		postResp, err := ts.post(fmt.Sprintf("/?len=%d", expectedLength), "test body")
 		require.NoError(t, err)
@@ -62,6 +68,8 @@ func TestCache(t *testing.T) {
 	})
 
 	t.Run("unpriveleged cache with big body returns 413", func(t *testing.T) {
+		t.Parallel()
+
 		largeBody := bytes.Repeat([]byte("a"), config.UNPREVELEGED_MAX_BODY_SIZE+100)
 
 		resp, err := ts.post("/", string(largeBody))
@@ -75,10 +83,11 @@ func TestCache(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
-	t.Parallel()
 	ts := setupTestServer(t)
 
 	t.Run("get after cache returns correct body", func(t *testing.T) {
+		t.Parallel()
+
 		expectedBody := "test body"
 		postResp, err := ts.post("/", expectedBody)
 		require.NoError(t, err)
@@ -96,10 +105,10 @@ func TestGet(t *testing.T) {
 }
 
 func TestGetClicks(t *testing.T) {
-	t.Parallel()
 	ts := setupTestServer(t)
 
 	t.Run("get clicks after zero requests returns zero clicks", func(t *testing.T) {
+		t.Parallel()
 		postResp, err := ts.post("/", "test body")
 		require.NoError(t, err)
 		gotURL := mustReadBody(t, postResp.Body)
@@ -114,6 +123,7 @@ func TestGetClicks(t *testing.T) {
 	})
 
 	t.Run("get clicks after number of clicks returns correct clicks", func(t *testing.T) {
+		t.Parallel()
 		const expectedRequests = 3
 		postResp, err := ts.post("/", "test body")
 		require.NoError(t, err)
@@ -133,10 +143,10 @@ func TestGetClicks(t *testing.T) {
 }
 
 func TestCacheDisposable(t *testing.T) {
-	t.Parallel()
 	ts := setupTestServer(t)
 
 	t.Run("disposable record will be removed after expected number of get requests", func(t *testing.T) {
+		t.Parallel()
 		const disposableCount = 3
 		postResp, err := ts.post(fmt.Sprintf("/?disposable=%d", disposableCount), "test body")
 		require.NoError(t, err)
@@ -161,10 +171,10 @@ func TestCacheDisposable(t *testing.T) {
 }
 
 func TestCacheURL(t *testing.T) {
-	t.Parallel()
 	ts := setupTestServer(t)
 
 	t.Run("get cached url redirects to expected location", func(t *testing.T) {
+		t.Parallel()
 		expectedURL := "https://example.com"
 		postResp, err := ts.post("/?url=true", expectedURL)
 		require.NoError(t, err)
