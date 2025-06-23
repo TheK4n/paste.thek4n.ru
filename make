@@ -29,7 +29,7 @@ cmd_testall() {
 
 cmd_build() {
     output="${OUTPUTDIR:-bin/}"
-    version="${APP_VERSION:-unknown}"
+    version="${APP_VERSION:-not-set}"
 
     CGO_ENABLED=0 \
     GOOS=linux \

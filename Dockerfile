@@ -1,7 +1,7 @@
 # builder
 FROM golang:1.23 AS builder
 
-ARG APP_VERSION
+ARG APP_VERSION=not-set
 
 WORKDIR /build
 
