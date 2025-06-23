@@ -6,9 +6,9 @@ repos:
         args: [--branch, master, --branch, main, --pattern, release/.*]
       - id: trailing-whitespace
       - id: end-of-file-fixer
-        exclude: VERSION
       - id: check-yaml
       - id: check-added-large-files
+      - id: mixed-line-ending
 
   - repo: local
     hooks:
@@ -27,7 +27,7 @@ repos:
         pass_filenames: false
 
   - repo: https://github.com/golangci/golangci-lint
-    rev: v1.55.2
+    rev: v2.1.6
     hooks:
       - id: golangci-lint
         args: [--timeout=5m]

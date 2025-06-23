@@ -58,7 +58,7 @@ func TestReduceQuota(t *testing.T) {
 	})
 }
 
-func TestQuotaDB_IsQuotaValid(t *testing.T) {
+func TestIsQuotaValid(t *testing.T) {
 	db := setupTestRedis(t)
 	ctx := context.Background()
 	key := "test_key"
