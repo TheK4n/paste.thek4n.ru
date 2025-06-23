@@ -33,9 +33,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestCacheSuccess(t *testing.T) {
-	t.Parallel()
 	ts := setupTestServer(t)
-	defer ts.close(t)
 
 	resp, err := ts.post("/", "test body")
 	require.NoError(t, err)
@@ -45,9 +43,7 @@ func TestCacheSuccess(t *testing.T) {
 }
 
 func TestGetReturnsCorrectBody(t *testing.T) {
-	t.Parallel()
 	ts := setupTestServer(t)
-	defer ts.close(t)
 
 	expectedBody := "test body"
 	postResp, err := ts.post("/", expectedBody)
@@ -63,9 +59,7 @@ func TestGetReturnsCorrectBody(t *testing.T) {
 }
 
 func TestClicksReturnsZeroAfterZeroRequests(t *testing.T) {
-	t.Parallel()
 	ts := setupTestServer(t)
-	defer ts.close(t)
 
 	postResp, err := ts.post("/", "test body")
 	require.NoError(t, err)
@@ -80,9 +74,7 @@ func TestClicksReturnsZeroAfterZeroRequests(t *testing.T) {
 }
 
 func TestReturnsCorrectClicksNumberAfterNumberOfRequests(t *testing.T) {
-	t.Parallel()
 	ts := setupTestServer(t)
-	defer ts.close(t)
 
 	const expectedRequests = 3
 	postResp, err := ts.post("/", "test body")
@@ -106,9 +98,7 @@ func TestReturnsCorrectClicksNumberAfterNumberOfRequests(t *testing.T) {
 }
 
 func TestUnprivilegedCacheBigBodyReturns413(t *testing.T) {
-	t.Parallel()
 	ts := setupTestServer(t)
-	defer ts.close(t)
 
 	largeBody := bytes.Repeat([]byte("a"), config.UNPREVELEGED_MAX_BODY_SIZE+100)
 	resp, err := ts.post("/", string(largeBody))
@@ -119,9 +109,7 @@ func TestUnprivilegedCacheBigBodyReturns413(t *testing.T) {
 }
 
 func TestDisposableRecordRemovesAfterExpectedNumberOfRequests(t *testing.T) {
-	t.Parallel()
 	ts := setupTestServer(t)
-	defer ts.close(t)
 
 	const disposableCount = 2
 	postResp, err := ts.post(fmt.Sprintf("/?disposable=%d", disposableCount), "test body")
@@ -145,9 +133,7 @@ func TestDisposableRecordRemovesAfterExpectedNumberOfRequests(t *testing.T) {
 }
 
 func TestCachedRedirectsToExpectedURL(t *testing.T) {
-	t.Parallel()
 	ts := setupTestServer(t)
-	defer ts.close(t)
 
 	expectedURL := "https://example.com"
 	postResp, err := ts.post("/?url=true", expectedURL)
@@ -170,9 +156,7 @@ func TestCachedRedirectsToExpectedURL(t *testing.T) {
 }
 
 func TestRequestCustomKeyLength(t *testing.T) {
-	t.Parallel()
 	ts := setupTestServer(t)
-	defer ts.close(t)
 
 	const expectedLength = 16
 	postResp, err := ts.post(fmt.Sprintf("/?len=%d", expectedLength), "test body")
@@ -185,14 +169,6 @@ func TestRequestCustomKeyLength(t *testing.T) {
 
 func (ts *testServer) post(path, body string) (*http.Response, error) {
 	return http.Post(ts.URL+path, http.DetectContentType([]byte(body)), strings.NewReader(body))
-}
-
-func (ts *testServer) close(t *testing.T) {
-	ctx := context.Background()
-	require.NoError(t, ts.db.Client.FlushDB(ctx).Err())
-	require.NoError(t, ts.apiKeysDB.Client.FlushDB(ctx).Err())
-	require.NoError(t, ts.quotaDB.Client.FlushDB(ctx).Err())
-	ts.Server.Close()
 }
 
 func mustReadBody(t *testing.T, r io.ReadCloser) string {
@@ -218,15 +194,21 @@ func setupTestServer(t *testing.T) *testServer {
 	if redisHost == "" {
 		redisHost = "localhost"
 	}
+	redisPort := 6379
 
-	db, err := storage.InitKeysStorageDB(redisHost, 6379)
+	db, err := storage.InitKeysStorageDB(redisHost, redisPort)
 	require.NoError(t, err, "failed to connect to keys storage")
 
-	apikeysDb, err := storage.InitAPIKeysStorageDB(redisHost, 6379)
+	apikeysDb, err := storage.InitAPIKeysStorageDB(redisHost, redisPort)
 	require.NoError(t, err, "failed to connect to api keys storage")
 
-	quotaDb, err := storage.InitQuotaStorageDB(redisHost, 6379)
+	quotaDb, err := storage.InitQuotaStorageDB(redisHost, redisPort)
 	require.NoError(t, err, "failed to connect to quota storage")
+
+	ctx := context.Background()
+	require.NoError(t, db.Client.FlushDB(ctx).Err())
+	require.NoError(t, apikeysDb.Client.FlushDB(ctx).Err())
+	require.NoError(t, quotaDb.Client.FlushDB(ctx).Err())
 
 	opts := Options{Health: true}
 
