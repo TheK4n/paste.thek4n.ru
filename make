@@ -22,7 +22,8 @@ cmd_testall() {
             -count=1 \
             -cover -covermode=atomic \
             -coverprofile="${cover_profile_file}" \
-            ./... && \
+            ./...
+
     go tool cover -func="${cover_profile_file}"
     rm "${cover_profile_file}"
 }
