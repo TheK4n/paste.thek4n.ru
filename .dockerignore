@@ -1,8 +1,10 @@
+.git
 .gitignore
 .dockerignore
 Dockerfile
 bin
-!bin/make
-frontend
 README.md
 docker-compose.yaml
+docker-compose.prod.yaml
+.drone.yml
+.pre-commit-config.yaml

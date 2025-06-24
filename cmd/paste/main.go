@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	version = "unknown"
+	version = "built-from-source"
 )
 
 type Options struct {

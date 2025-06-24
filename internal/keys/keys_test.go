@@ -4,131 +4,151 @@ package keys
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
 
-func setupTestKeysDB(t *testing.T) *storage.KeysDB {
-	dbHost := os.Getenv("REDIS_HOST")
-	if dbHost == "" {
-		dbHost = "localhost"
-	}
+func TestMain(m *testing.M) {
+	setup()
+	code := m.Run()
+	os.Exit(code)
+}
+
+func setup() {
+	dbHost := getRedisHost()
+	dbPort := 6379
+	db, _ := storage.InitKeysStorageDB(dbHost, dbPort)
+	_ = db.Client.FlushDB(context.Background()).Err()
+}
+
+func TestCache(t *testing.T) {
+	db := setupTestKeysDB(t)
+	timeout := 1 * time.Second
+	ttl := 0 * time.Second
+	record := storage.KeyRecord{Body: []byte("test")}
+
+	t.Run("requested key and got key are equal", func(t *testing.T) {
+		t.Parallel()
+
+		expectedKey := getKeyPrefix(t, "test_key")
+		gotKey, err := Cache(db, timeout, expectedKey, ttl, 0, record)
+
+		require.NoError(t, err)
+		assert.Equal(t, expectedKey, gotKey)
+	})
+
+	t.Run("attempt to take already taken key returns error", func(t *testing.T) {
+		t.Parallel()
+
+		expectedKey := getKeyPrefix(t, "taken_key")
+		_, errCaching := Cache(db, timeout, expectedKey, ttl, 10, record)
+
+		_, errCachingSecond := Cache(db, timeout, expectedKey, ttl, 10, record)
+
+		require.NoError(t, errCaching)
+		assert.Error(t, errCachingSecond)
+		assert.Equal(t, ErrKeyAlreadyTaken, errCachingSecond)
+	})
+
+	t.Run("cache with empty key returns generated key with requested length", func(t *testing.T) {
+		t.Parallel()
+
+		requestedKey := ""
+		keyLength := 10
+		gotKey, errCaching := Cache(db, timeout, requestedKey, ttl, keyLength, record)
+		require.NoError(t, errCaching)
+
+		assert.Len(t, gotKey, keyLength)
+	})
+
+	t.Run("get by generated random key has expected body", func(t *testing.T) {
+		t.Parallel()
+
+		requestedKey := ""
+		keyLength := 10
+		gotKey, errCaching := Cache(db, timeout, requestedKey, ttl, keyLength, record)
+		require.NoError(t, errCaching)
+
+		result, err := Get(db, gotKey, timeout)
+		require.NoError(t, err)
+		assert.Equal(t, record.Body, result.Body)
+	})
+}
+
+func TestGet(t *testing.T) {
+	db := setupTestKeysDB(t)
+	record := storage.KeyRecord{Body: []byte("test")}
+	timeout := 1 * time.Second
+	ttl := 0 * time.Second
+
+	t.Run("requested key and got key are equal", func(t *testing.T) {
+		t.Parallel()
+
+		key := "nonexistent_key"
+		timeout := 1 * time.Second
+
+		_, err := Get(db, key, timeout)
+
+		require.Error(t, err)
+		assert.Equal(t, storage.ErrKeyNotFound, err)
+	})
+
+	t.Run("record clicks equal number of get requests", func(t *testing.T) {
+		t.Parallel()
+
+		expectedKey := getKeyPrefix(t, "taken_key")
+		requestNumber := 3
+		_, errCaching := Cache(db, timeout, expectedKey, ttl, len(expectedKey), record)
+		require.NoError(t, errCaching)
+
+		for range requestNumber {
+			_, err := Get(db, expectedKey, timeout)
+			require.NoError(t, err)
+		}
+
+		clicks, err := GetClicks(db, expectedKey, timeout)
+		require.NoError(t, err)
+		assert.Equal(t, requestNumber, clicks)
+	})
+
+	t.Run("get by non existent key returns error", func(t *testing.T) {
+		t.Parallel()
+
+		key := "nonexistent_key"
+
+		_, err := GetClicks(db, key, timeout)
+
+		assert.Error(t, err)
+		assert.Equal(t, storage.ErrKeyNotFound, err)
+	})
+}
+
+func setupTestKeysDB(t *testing.T) storage.KeysDB {
+	t.Helper()
+	dbHost := getRedisHost()
 	dbPort := 6379
 
 	db, err := storage.InitKeysStorageDB(dbHost, dbPort)
-	if err != nil {
-		t.Fatalf("Failed to connect to Redis: %v", err)
+	require.NoError(t, err, "Failed to setup keys db")
+
+	return *db
+}
+
+func getRedisHost() string {
+	dbHost := os.Getenv("REDIS_HOST")
+	if dbHost == "" {
+		return "localhost"
 	}
-
-	// Clean db before test
-	err = db.Client.FlushDB(context.Background()).Err()
-	if err != nil {
-		t.Fatalf("Failed to flush db: %v", err)
-	}
-
-	return db
+	return dbHost
 }
 
-func TestRequestedKeyAndGotKeyAreEqual(t *testing.T) {
-	db := *setupTestKeysDB(t)
-	key := "test_key"
-	body := []byte("test body")
-	timeout := 1 * time.Second
-
-	gotKey, err := Cache(db, timeout, key, 0*time.Second, len(key), storage.KeyRecord{Body: body})
-
-	assert.NoError(t, err)
-	assert.Equal(t, key, gotKey)
-}
-
-func TestCachedAndGottenBodyAreEqual(t *testing.T) {
-	db := *setupTestKeysDB(t)
-	key := "test_key"
-	body := []byte("test body")
-	timeout := 1 * time.Second
-
-	_, errCaching := Cache(db, timeout, key, 0*time.Second, len(key), storage.KeyRecord{Body: body})
-	result, errGetting := Get(db, key, timeout)
-
-	assert.NoError(t, errCaching)
-	assert.NoError(t, errGetting)
-	assert.Equal(t, body, result.Body)
-}
-
-func TestNotExistingKeyIsNotFound(t *testing.T) {
-	db := *setupTestKeysDB(t)
-	key := "nonexistent_key"
-	timeout := 1 * time.Second
-
-	_, err := Get(db, key, timeout)
-
-	assert.Error(t, err)
-	assert.Equal(t, storage.ErrKeyNotFound, err)
-}
-
-func TestGetClicksEqualNumberOfGetRequests(t *testing.T) {
-	db := *setupTestKeysDB(t)
-	key := "test_key"
-	body := []byte("test body")
-	requestNumber := 3
-	timeout := 1 * time.Second
-	_, errCaching := Cache(db, timeout, key, 0*time.Second, len(key), storage.KeyRecord{Body: body})
-	var errGetting error
-
-	for range requestNumber {
-		_, errGetting = Get(db, key, timeout)
-	}
-
-	assert.NoError(t, errCaching)
-	assert.NoError(t, errGetting)
-	clicks, err := GetClicks(db, key, timeout)
-	assert.NoError(t, err)
-	assert.Equal(t, requestNumber, clicks)
-}
-
-func TestGetClicksForNotExistingKeyIsNotFound(t *testing.T) {
-	db := *setupTestKeysDB(t)
-	key := "nonexistent_key"
-	timeout := 1 * time.Second
-
-	_, err := GetClicks(db, key, timeout)
-
-	assert.Error(t, err)
-	assert.Equal(t, storage.ErrKeyNotFound, err)
-}
-
-func TestRequestedKeyAlreadyTaken(t *testing.T) {
-	db := *setupTestKeysDB(t)
-	timeout := 1 * time.Second
-	requestedKey := "taken_key"
-	record := storage.KeyRecord{Body: []byte("test")}
-	_, errCaching := Cache(db, timeout, requestedKey, 0*time.Second, 10, record)
-
-	_, errCachingSecond := Cache(db, timeout, requestedKey, 0*time.Second, 10, record)
-
-	assert.NoError(t, errCaching)
-	assert.Error(t, errCachingSecond)
-	assert.Equal(t, ErrKeyAlreadyTaken, errCachingSecond)
-}
-
-func TestSuccessfulCacheWithGeneratedKey(t *testing.T) {
-	db := *setupTestKeysDB(t)
-	timeout := 1 * time.Second
-	requestedKey := ""
-	keyLength := 10
-	record := storage.KeyRecord{Body: []byte("test")}
-
-	gotKey, errCaching := Cache(db, timeout, requestedKey, 0*time.Second, keyLength, record)
-
-	assert.NoError(t, errCaching)
-	assert.NotEmpty(t, gotKey)
-	assert.Len(t, gotKey, keyLength)
-
-	result, err := Get(db, gotKey, timeout)
-	assert.NoError(t, err)
-	assert.Equal(t, record.Body, result.Body)
+func getKeyPrefix(t *testing.T, key string) string {
+	return fmt.Sprintf("%s:%s", t.Name(), key)
 }

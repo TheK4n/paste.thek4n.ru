@@ -1,15 +1,14 @@
 # builder
 FROM golang:1.23 AS builder
 
-WORKDIR /build
+ARG APP_VERSION=not-set
 
-ARG APP_VERSION
-ENV APP_VERSION=$APP_VERSION
+WORKDIR /build
 
 COPY . .
 
 RUN --mount=type=cache,target=/go/pkg/mod \
-    OUTPUTDIR="/app/" APP_VERSION=$APP_VERSION ./bin/make build
+    OUTPUTDIR="/app/" APP_VERSION=$APP_VERSION ./make build
 
 
 # upx

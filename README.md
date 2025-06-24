@@ -114,12 +114,20 @@ Non authorized has quota 50 post requests in 24 hours
 Generate new api key:
 ```sh
 export REDIS_HOST=localhost  # Host of redis db or container
-./apikeys gen                # generate and add new api key
-./apikeys list               # list of api keys
-./apikeys revoke "key"       # revoke (invalidate) api key
-./apikeys reauthorize "key"  # reauthorize api key
-./apikeys rm "key"           # remove api key
+./tools/apikeys gen                # generate and add new api key
+./tools/apikeys list               # list of api keys
+./tools/apikeys revoke "key"       # revoke (invalidate) api key
+./tools/apikeys reauthorize "key"  # reauthorize api key
+./tools/apikeys rm "key"           # remove api key
 ```
+
+
+## Building
+
+```sh
+./make
+```
+Output in directory `bin`
 
 
 ## Tests
@@ -137,11 +145,5 @@ GOMAXPROCS=1 go test -tags integration,e2e -count=1 -cover -covermode=atomic ./.
 * Without tags - Only unit tests
 * `integration` - Integration tests
 * `e2e` - End-to-end tests
-* `e2ettl` - End-to-end tests ttl urls (long execution)
-
-Run tests e2ettl:
-```sh
-GOMAXPROCS=1 go test -tags e2e,e2ettl -count=1 -cover -covermode=atomic ./...
-```
 
 <h1 align="center"><a href="#top">▲</a></h1>

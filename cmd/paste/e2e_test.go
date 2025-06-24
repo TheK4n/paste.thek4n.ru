@@ -4,218 +4,185 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"fmt"
-	"io"
 	"net/http"
-	"net/http/httptest"
-	"os"
 	"strconv"
-	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/thek4n/paste.thek4n.name/internal/config"
-	"github.com/thek4n/paste.thek4n.name/internal/handlers"
-	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
 
-func TestCacheSuccess(t *testing.T) {
+func TestCache(t *testing.T) {
 	ts := setupTestServer(t)
-	defer ts.Close()
-	expectedBody := "body"
-	bodyReader := strings.NewReader(expectedBody)
 
-	resp, err := http.Post(ts.URL+"/", http.DetectContentType([]byte(expectedBody)), bodyReader)
+	t.Run("cache returns 200 ok", func(t *testing.T) {
+		t.Parallel()
 
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-}
+		resp, err := ts.post("/", "test body")
+		require.NoError(t, err)
 
-func TestGetReturnsCorrectBody(t *testing.T) {
-	// Arrange
-	ts := setupTestServer(t)
-	defer ts.Close()
-	expectedBody := "body"
-	bodyReader := strings.NewReader(expectedBody)
-	response, err := http.Post(ts.URL+"/", http.DetectContentType([]byte(expectedBody)), bodyReader)
-	assert.NoError(t, err)
-	gotUrl := readerToString(response.Body)
+		assert.Equal(t,
+			http.StatusOK, resp.StatusCode,
+		)
+	})
 
-	// Act
-	response, err = http.Get(gotUrl)
+	t.Run("cache with expiration time removes key after this time", func(t *testing.T) {
+		t.Parallel()
 
-	// Assert
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, response.StatusCode)
-	assert.Equal(t, expectedBody, readerToString(response.Body))
-}
+		if testing.Short() {
+			t.Skip("skipping test in short mode.")
+		}
 
-func TestClicksReturnsZeroAfterZeroRequests(t *testing.T) {
-	// Arrange
-	ts := setupTestServer(t)
-	defer ts.Close()
-	expectedBody := "body"
-	bodyReader := strings.NewReader(expectedBody)
-	response, _ := http.Post(ts.URL+"/", http.DetectContentType([]byte(expectedBody)), bodyReader)
-	gotUrl := readerToString(response.Body)
+		expectedBody := "body"
+		resp, err := ts.post("/?ttl=3s", expectedBody)
+		require.NoError(t, err)
+		gotUrl := mustReadBody(t, resp.Body)
 
-	// Act
-	response, err := http.Get(gotUrl + "/clicks/")
-
-	// Assert
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, response.StatusCode)
-	assert.Equal(t, "0", readerToString(response.Body))
-}
-
-func TestReturnsCorrectClicksNumberAfterNumberOfRequests(t *testing.T) {
-	// Arrange
-	ts := setupTestServer(t)
-	defer ts.Close()
-	expectedBody := "body"
-	bodyReader := strings.NewReader(expectedBody)
-	var expectedRequestsNumber int64 = 3
-	clicksResponse, _ := http.Post(ts.URL+"/", http.DetectContentType([]byte(expectedBody)), bodyReader)
-	gotUrl := readerToString(clicksResponse.Body)
-
-	// Act
-	for range expectedRequestsNumber {
-		_, _ = http.Get(gotUrl)
-	}
-	clicksResponse, err := http.Get(gotUrl + "/clicks/")
-
-	// Assert
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, clicksResponse.StatusCode)
-	assert.Equal(t, strconv.FormatInt(expectedRequestsNumber, 10), readerToString(clicksResponse.Body))
-}
-
-func TestUnprivelegedCacheBigBodyReturns413(t *testing.T) {
-	ts := setupTestServer(t)
-	defer ts.Close()
-	largeBody := bytes.Repeat([]byte("a"), config.UNPREVELEGED_MAX_BODY_SIZE+100)
-	bodyReader := bytes.NewReader(largeBody)
-
-	resp, _ := http.Post(ts.URL+"/", http.DetectContentType([]byte(largeBody)), bodyReader)
-
-	assert.Equal(t, http.StatusRequestEntityTooLarge, resp.StatusCode)
-}
-
-func TestDisposableRecordRemovesAfterExpectedNumberOfRequests(t *testing.T) {
-	ts := setupTestServer(t)
-	defer ts.Close()
-	expectedBody := "body"
-	bodyReader := strings.NewReader(expectedBody)
-	disposableCount := 2
-	resp, err := http.Post(fmt.Sprintf("%s/?disposable=%d", ts.URL, disposableCount), http.DetectContentType([]byte(expectedBody)), bodyReader)
-	assert.NoError(t, err)
-	gotUrl := readerToString(resp.Body)
-
-	for range disposableCount {
-		_, err = http.Get(gotUrl)
-		assert.NoError(t, err)
+		resp, err = http.Get(gotUrl)
+		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-	}
-	resp, err = http.Get(gotUrl)
 
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+		time.Sleep(3500 * time.Millisecond)
+
+		resp, err = http.Get(gotUrl)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	})
+
+	t.Run("cache request custom key length", func(t *testing.T) {
+		t.Parallel()
+
+		const expectedLength = 16
+		postResp, err := ts.post(fmt.Sprintf("/?len=%d", expectedLength), "test body")
+		require.NoError(t, err)
+
+		gotURL := mustReadBody(t, postResp.Body)
+		assert.Equal(t,
+			expectedLength, getKeyLength(t, gotURL),
+			"key length should match requested length",
+		)
+	})
+
+	t.Run("unpriveleged cache with big body returns 413", func(t *testing.T) {
+		t.Parallel()
+
+		largeBody := bytes.Repeat([]byte("a"), config.UNPREVELEGED_MAX_BODY_SIZE+100)
+
+		resp, err := ts.post("/", string(largeBody))
+		require.NoError(t, err)
+
+		assert.Equal(t,
+			http.StatusRequestEntityTooLarge, resp.StatusCode,
+			"should reject too large bodies",
+		)
+	})
 }
 
-func TestCachedRedirectsToExpectedURL(t *testing.T) {
+func TestGet(t *testing.T) {
 	ts := setupTestServer(t)
-	defer ts.Close()
-	expectedURL := "https://example.com"
-	bodyReader := bytes.NewReader([]byte(expectedURL))
-	resp, err := http.Post(fmt.Sprintf("%s/?url=true", ts.URL), http.DetectContentType([]byte(expectedURL)), bodyReader)
-	assert.NoError(t, err)
-	gotUrl := readerToString(resp.Body)
-	client := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
 
-	resp, err = client.Get(gotUrl)
+	t.Run("get after cache returns correct body", func(t *testing.T) {
+		t.Parallel()
 
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusSeeOther, resp.StatusCode)
-	assert.Equal(t, expectedURL, resp.Header.Get("Location"))
+		expectedBody := "test body"
+		postResp, err := ts.post("/", expectedBody)
+		require.NoError(t, err)
+		gotURL := mustReadBody(t, postResp.Body)
+
+		getResp, err := http.Get(gotURL)
+		require.NoError(t, err)
+
+		assert.Equal(t,
+			expectedBody,
+			mustReadBody(t, getResp.Body),
+			"retrieved body should match posted body",
+		)
+	})
 }
 
-func TestRequestCustomKeyLength(t *testing.T) {
+func TestGetClicks(t *testing.T) {
 	ts := setupTestServer(t)
-	defer ts.Close()
-	body := "body"
-	bodyReader := strings.NewReader(body)
-	expectedLength := 16
 
-	resp, err := http.Post(fmt.Sprintf("%s/?len=%d", ts.URL, expectedLength), http.DetectContentType([]byte(body)), bodyReader)
+	t.Run("get clicks after zero requests returns zero clicks", func(t *testing.T) {
+		t.Parallel()
+		postResp, err := ts.post("/", "test body")
+		require.NoError(t, err)
+		gotURL := mustReadBody(t, postResp.Body)
 
-	assert.NoError(t, err)
-	assert.Equal(t, expectedLength, getLenOfUrlKey(readerToString(resp.Body)))
+		clicksResp, err := http.Get(gotURL + "/clicks/")
+		require.NoError(t, err)
+
+		assert.Equal(t,
+			"0", mustReadBody(t, clicksResp.Body),
+			"clicks should be 0 for new paste",
+		)
+	})
+
+	t.Run("get clicks after number of clicks returns correct clicks", func(t *testing.T) {
+		t.Parallel()
+		const expectedRequests = 3
+		postResp, err := ts.post("/", "test body")
+		require.NoError(t, err)
+		gotURL := mustReadBody(t, postResp.Body)
+
+		for range expectedRequests {
+			_, err := http.Get(gotURL)
+			require.NoError(t, err)
+		}
+
+		clicksResp, err := http.Get(gotURL + "/clicks/")
+		require.NoError(t, err)
+		assert.Equal(t,
+			strconv.Itoa(expectedRequests), mustReadBody(t, clicksResp.Body),
+		)
+	})
 }
 
-func getLenOfUrlKey(url string) int {
-	key := strings.Split(url, "/")[3]
-	return len(key)
+func TestCacheDisposable(t *testing.T) {
+	ts := setupTestServer(t)
+
+	t.Run("disposable record will be removed after expected number of get requests", func(t *testing.T) {
+		t.Parallel()
+		const disposableCount = 3
+		postResp, err := ts.post(fmt.Sprintf("/?disposable=%d", disposableCount), "test body")
+		require.NoError(t, err)
+		gotURL := mustReadBody(t, postResp.Body)
+
+		for range disposableCount {
+			resp, err := http.Get(gotURL)
+			require.NoError(t, err)
+			require.Equal(t,
+				http.StatusOK, resp.StatusCode,
+				"shoudn`t be removed yet",
+			)
+		}
+
+		resp, err := http.Get(gotURL)
+		require.NoError(t, err)
+		assert.Equal(t,
+			http.StatusNotFound, resp.StatusCode,
+			"should be removed",
+		)
+	})
 }
 
-func readerToString(body io.ReadCloser) string {
-	buf := new(bytes.Buffer)
-	_, err := buf.ReadFrom(body)
-	if err != nil {
-		panic(err)
-	}
-	return buf.String()
-}
+func TestCacheURL(t *testing.T) {
+	ts := setupTestServer(t)
 
-func setupTestServer(t *testing.T) *httptest.Server {
-	redisHost := os.Getenv("REDIS_HOST")
-	if redisHost == "" {
-		redisHost = "localhost"
-	}
+	t.Run("get cached url redirects to expected location", func(t *testing.T) {
+		t.Parallel()
+		expectedURL := "https://example.com"
+		postResp, err := ts.post("/?url=true", expectedURL)
+		require.NoError(t, err)
+		gotURL := mustReadBody(t, postResp.Body)
 
-	db, err := storage.InitKeysStorageDB(redisHost, 6379)
-	if err != nil {
-		t.Fatalf("Failed to connect to database server: %v", err)
-	}
-
-	apikeysDb, err := storage.InitAPIKeysStorageDB(redisHost, 6379)
-	if err != nil {
-		t.Fatalf("Failed to connect to database server: %v", err)
-	}
-
-	quotaDb, err := storage.InitQuotaStorageDB(redisHost, 6379)
-	if err != nil {
-		t.Fatalf("Failed to connect to database server: %v", err)
-	}
-
-	opts := Options{
-		Health: true,
-	}
-
-	app := handlers.Application{
-		Version:   "test",
-		DB:        *db,
-		ApiKeysDB: *apikeysDb,
-		QuotaDB:   *quotaDb,
-	}
-	ts := httptest.NewServer(getMux(&app, &opts))
-
-	err = db.Client.FlushDB(context.Background()).Err()
-	if err != nil {
-		t.Fatalf("Failed to flush db: %v", err)
-	}
-	err = apikeysDb.Client.FlushDB(context.Background()).Err()
-	if err != nil {
-		t.Fatalf("Failed to flush db: %v", err)
-	}
-	err = quotaDb.Client.FlushDB(context.Background()).Err()
-	if err != nil {
-		t.Fatalf("Failed to flush db: %v", err)
-	}
-
-	return ts
+		resp, err := noRedirectGet(gotURL)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusSeeOther, resp.StatusCode)
+		assert.Equal(t, expectedURL, resp.Header.Get("Location"))
+	})
 }

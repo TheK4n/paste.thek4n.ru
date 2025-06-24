@@ -103,10 +103,10 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = app.QuotaDB.CreateAndSubOrJustSub(context.Background(), remoteAddr)
+		err = app.QuotaDB.ReduceQuota(context.Background(), remoteAddr)
 		if err != nil {
 			log.Printf(
-				"Error on sub quota: %s. Response to client %s with code %d",
+				"Error on reduce quota: %s. Response to client %s with code %d",
 				err.Error(),
 				remoteAddr,
 				http.StatusInternalServerError,

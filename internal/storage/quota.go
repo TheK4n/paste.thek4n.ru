@@ -14,9 +14,9 @@ type QuotaDB struct {
 	Client *redis.Client
 }
 
-// CreateAndSubOrJustSub create specified key with expiration time
+// ReduceQuota create specified key with expiration time
 // and decreases countdown field for key
-func (db *QuotaDB) CreateAndSubOrJustSub(ctx context.Context, key string) error {
+func (db *QuotaDB) ReduceQuota(ctx context.Context, key string) error {
 	exists, err := db.exists(ctx, key)
 	if err != nil {
 		return err
@@ -29,7 +29,7 @@ func (db *QuotaDB) CreateAndSubOrJustSub(ctx context.Context, key string) error 
 			redis.call("EXPIRE", KEYS[1], ARGV[3])
 			return 1
 		`
-		err := db.Client.Eval(ctx, script, []string{key}, "countdown", config.QUOTA, int(config.QUOTA_PERIOD.Seconds())).Err()
+		err := db.Client.Eval(ctx, script, []string{key}, "countdown", config.QUOTA, int(config.QUOTA_RESET_PERIOD.Seconds())).Err()
 		if err != nil {
 			return err
 		}
@@ -38,7 +38,7 @@ func (db *QuotaDB) CreateAndSubOrJustSub(ctx context.Context, key string) error 
 	return db.Client.HIncrBy(ctx, key, "countdown", -1).Err()
 }
 
-// Checks is quota for specified key is not expired
+// IsQoutaValid checks is quota for specified key is not expired
 func (db *QuotaDB) IsQuotaValid(ctx context.Context, key string) (bool, error) {
 	exists, err := db.exists(ctx, key)
 	if err != nil {

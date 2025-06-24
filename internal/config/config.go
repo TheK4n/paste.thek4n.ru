@@ -31,7 +31,7 @@ const ATTEMPTS_TO_INCREASE_KEY_MIN_LENGHT = 20
 const CHARSET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 // Quota config
-const QUOTA_PERIOD = 24 * time.Hour
+const QUOTA_RESET_PERIOD = 24 * time.Hour
 const QUOTA = 50
 
 // Compress
