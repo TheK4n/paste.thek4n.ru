@@ -27,6 +27,9 @@ func setup() {
 	dbPort := 6379
 	db, _ := InitKeysStorageDB(dbHost, dbPort)
 	_ = db.Client.FlushDB(context.Background()).Err()
+
+	dbq, _ := InitQuotaStorageDB(dbHost, dbPort)
+	_ = dbq.Client.FlushDB(context.Background()).Err()
 }
 
 func TestKeysDB_Exists(t *testing.T) {

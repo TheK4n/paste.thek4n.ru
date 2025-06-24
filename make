@@ -10,7 +10,6 @@ cmd_testshort() {
             -short \
             -failfast \
             -count=1 \
-            -cover -covermode=atomic \
             ./...
 }
 

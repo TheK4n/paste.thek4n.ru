@@ -13,29 +13,13 @@ import (
 	"github.com/thek4n/paste.thek4n.name/internal/config"
 )
 
-func setupTestRedis(t *testing.T) *QuotaDB {
-	t.Helper()
-	dbHost := os.Getenv("REDIS_HOST")
-	if dbHost == "" {
-		dbHost = "localhost"
-	}
-	dbPort := 6379
-
-	db, err := InitQuotaStorageDB(dbHost, dbPort)
-	require.NoError(t, err)
-
-	err = db.Client.FlushDB(context.Background()).Err()
-	require.NoError(t, err)
-
-	return db
-}
-
 func TestReduceQuota(t *testing.T) {
 	db := setupTestRedis(t)
 	ctx := context.Background()
-	key := "test_key"
 
 	t.Run("create new record", func(t *testing.T) {
+		t.Parallel()
+		key := getKeyPrefix(t, "test_key")
 		err := db.ReduceQuota(ctx, key)
 		require.NoError(t, err)
 
@@ -49,27 +33,32 @@ func TestReduceQuota(t *testing.T) {
 	})
 
 	t.Run("decrement existing record", func(t *testing.T) {
+		t.Parallel()
+		key := getKeyPrefix(t, "test_key")
 		err := db.ReduceQuota(ctx, key)
 		require.NoError(t, err)
 
 		val, err := db.Client.HGet(ctx, key, "countdown").Int()
 		require.NoError(t, err)
-		assert.Equal(t, config.QUOTA-2, val)
+		assert.Equal(t, config.QUOTA-1, val)
 	})
 }
 
 func TestIsQuotaValid(t *testing.T) {
 	db := setupTestRedis(t)
 	ctx := context.Background()
-	key := "test_key"
 
 	t.Run("no record - valid", func(t *testing.T) {
+		t.Parallel()
+		key := getKeyPrefix(t, "test_key")
 		valid, err := db.IsQuotaValid(ctx, key)
 		require.NoError(t, err)
 		assert.True(t, valid)
 	})
 
 	t.Run("record with positive countdown - valid", func(t *testing.T) {
+		t.Parallel()
+		key := getKeyPrefix(t, "test_key")
 		err := db.Client.HSet(ctx, key, "countdown", 1).Err()
 		require.NoError(t, err)
 
@@ -79,6 +68,8 @@ func TestIsQuotaValid(t *testing.T) {
 	})
 
 	t.Run("record with zero countdown - invalid", func(t *testing.T) {
+		t.Parallel()
+		key := getKeyPrefix(t, "test_key")
 		err := db.Client.HSet(ctx, key, "countdown", 0).Err()
 		require.NoError(t, err)
 
@@ -88,6 +79,8 @@ func TestIsQuotaValid(t *testing.T) {
 	})
 
 	t.Run("record with negative countdown - invalid", func(t *testing.T) {
+		t.Parallel()
+		key := getKeyPrefix(t, "test_key")
 		err := db.Client.HSet(ctx, key, "countdown", -1).Err()
 		require.NoError(t, err)
 
@@ -100,15 +93,18 @@ func TestIsQuotaValid(t *testing.T) {
 func TestQuotaDB_exists(t *testing.T) {
 	db := setupTestRedis(t)
 	ctx := context.Background()
-	key := "test_key"
 
 	t.Run("key does not exist", func(t *testing.T) {
+		t.Parallel()
+		key := getKeyPrefix(t, "test_key")
 		exists, err := db.exists(ctx, key)
 		require.NoError(t, err)
 		assert.False(t, exists)
 	})
 
 	t.Run("key exists", func(t *testing.T) {
+		t.Parallel()
+		key := getKeyPrefix(t, "test_key")
 		err := db.Client.Set(ctx, key, "value", 0).Err()
 		require.NoError(t, err)
 
@@ -116,4 +112,18 @@ func TestQuotaDB_exists(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, exists)
 	})
+}
+
+func setupTestRedis(t *testing.T) *QuotaDB {
+	t.Helper()
+	dbHost := os.Getenv("REDIS_HOST")
+	if dbHost == "" {
+		dbHost = "localhost"
+	}
+	dbPort := 6379
+
+	db, err := InitQuotaStorageDB(dbHost, dbPort)
+	require.NoError(t, err)
+
+	return db
 }
