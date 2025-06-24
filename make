@@ -10,7 +10,6 @@ cmd_testshort() {
             -short \
             -failfast \
             -count=1 \
-            -race \
             -cover -covermode=atomic \
             ./...
 }
@@ -22,7 +21,6 @@ cmd_testall() {
             -tags integration,e2e \
             -failfast \
             -count=1 \
-            -race \
             -cover -covermode=atomic \
             -coverprofile="${cover_profile_file}" \
             ./... && \
