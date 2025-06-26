@@ -74,14 +74,14 @@ func (db *KeysDB) Get(ctx context.Context, key string) (KeyRecordAnswer, error) 
 	if record.Disposable {
 		countdown, countdownErr := db.Client.HIncrBy(ctx, key, "countdown", -1).Result()
 		if countdownErr != nil {
-			panic("Fatal error when countdown: " + countdownErr.Error())
+			return answer, fmt.Errorf("fatal error when countdown disposable counter: %w", countdownErr)
 		}
 		log.Printf("Decreased countdown disposable key '%s' when getting, countdown=%d", key, countdown)
 
 		if countdown < 1 {
 			delErr := db.Client.Del(ctx, key).Err()
 			if delErr != nil {
-				panic("Fatal error when deletion disposable url: " + delErr.Error())
+				return answer, fmt.Errorf("fatal error when delete disposable url: %w", delErr)
 			}
 			log.Printf("Removed disposable key '%s' when getting", key)
 		}
