@@ -6,7 +6,7 @@ steps:
   - name: test-build
     image: golang:1.23
     commands:
-      - ./make build
+      - make build
     volumes:
       - name: go-build-cache
         path: /root/.cache/go-build
@@ -59,7 +59,7 @@ steps:
     environment:
       REDIS_HOST: redis-test
     commands:
-      - ./make test
+      - make test
     depends_on:
       - test-build
       - redis-test

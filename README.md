@@ -138,12 +138,7 @@ docker run --rm -d -p 6379 --name redis redis
 ```
 Run tests:
 ```sh
-GOMAXPROCS=1 go test -tags integration,e2e -count=1 -cover -covermode=atomic ./...
+make test
 ```
-
-### Tags
-* Without tags - Only unit tests
-* `integration` - Integration tests
-* `e2e` - End-to-end tests
 
 <h1 align="center"><a href="#top">▲</a></h1>

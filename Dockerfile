@@ -8,7 +8,7 @@ WORKDIR /build
 COPY . .
 
 RUN --mount=type=cache,target=/go/pkg/mod \
-    OUTPUTDIR="/app/" APP_VERSION=$APP_VERSION ./make build
+    OUTPUTDIR="/app/" APP_VERSION=$APP_VERSION make build
 
 
 # upx
