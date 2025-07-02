@@ -1,11 +1,16 @@
 APP_VERSION ?= not-set
 OUTPUTDIR ?= bin/
-COVER_PROFILE := $(shell mktemp)
-
-.PHONY: e2e cover e2e-short integration build
 
 default: build
 
+.PHONY: build
+build:
+	CGO_ENABLED=0 GOOS=linux \
+	go build -v \
+		-ldflags "-w -s -X 'main.version=$(APP_VERSION)'" \
+		-o $(OUTPUTDIR) ./...
+
+.PHONY: e2e
 e2e:
 	GOMAXPROCS=1 \
 	go test \
@@ -14,6 +19,7 @@ e2e:
 		-count=1 \
 		./...
 
+.PHONY: e2e-short
 e2e-short:
 	GOMAXPROCS=1 \
 	go test \
@@ -23,18 +29,22 @@ e2e-short:
 		-count=1 \
 		./...
 
+.PHONY: cover
+.ONESHELL:
 cover:
+	cover_profile=$$(mktemp)
 	GOMAXPROCS=1 \
 	go test \
 		-tags integration,e2e \
 		-failfast \
 		-count=1 \
 		-cover -covermode=atomic \
-		-coverprofile=$(COVER_PROFILE) \
+		-coverprofile="$$cover_profile" \
 		./...
-	go tool cover -func=$(COVER_PROFILE)
-	rm $(COVER_PROFILE)
+	go tool cover -func="$$cover_profile"
+	rm "$$cover_profile"
 
+.PHONY: integration
 integration:
 	GOMAXPROCS=1 \
 	go test \
@@ -43,6 +53,7 @@ integration:
 		-count=1 \
 		./...
 
+.PHONY: test
 test:
 	GOMAXPROCS=1 \
 	go test \
@@ -50,9 +61,3 @@ test:
 		-failfast \
 		-count=1 \
 		./...
-
-build:
-	CGO_ENABLED=0 GOOS=linux \
-	go build -v \
-		-ldflags "-w -s -X 'main.version=$(APP_VERSION)'" \
-		-o $(OUTPUTDIR) ./...
