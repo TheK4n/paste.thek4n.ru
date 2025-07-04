@@ -84,7 +84,18 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	authorized := false
 	apikey := r.URL.Query().Get("apikey")
 	if apikey != "" {
-		authorized = app.validateApikey(apikey)
+		var err error
+		authorized, err = app.validateApikey(apikey)
+		if err != nil {
+			log.Printf(
+				"Error on checking apikey: %s. Response to client %s with code %d",
+				err.Error(),
+				remoteAddr,
+				http.StatusInternalServerError,
+			)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 
 	if !authorized {
@@ -535,13 +546,16 @@ func validateURL(str string) bool {
 	return err == nil && u.Scheme != "" && u.Host != ""
 }
 
-func (app *Application) validateApikey(str string) bool {
+func (app *Application) validateApikey(str string) (bool, error) {
 	record, err := app.APIKeysDB.Get(context.Background(), str)
+	if errors.Is(err, storage.ErrKeyNotFound) {
+		return false, nil
+	}
 	if err != nil {
-		return false
+		return false, fmt.Errorf("fail to get api key: %w", err)
 	}
 
-	return record.Valid
+	return record.Valid, nil
 }
 
 func getClientIP(r *http.Request) string {

@@ -35,17 +35,17 @@ func (db *APIKeysDB) Set(ctx context.Context, key string) error {
 }
 
 // Get gets key from db.
+// returns APIKeyRecord if found.
+// if key not found returns ErrKeyNotFound.
 func (db *APIKeysDB) Get(ctx context.Context, key string) (APIKeyRecord, error) {
-	record := APIKeyRecord{
-		Valid: false,
-	}
+	var record APIKeyRecord
 	exists, err := db.exists(ctx, key)
 	if err != nil {
 		return record, err
 	}
 
 	if !exists {
-		return record, nil
+		return record, ErrKeyNotFound
 	}
 
 	err = db.Client.HGetAll(ctx, key).Scan(&record)
