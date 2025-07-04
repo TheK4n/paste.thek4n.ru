@@ -65,7 +65,12 @@ test:
 .PHONY: lint
 lint:
 	GOFLAGS="-tags=integration,e2e" \
-	golangci-lint run --fix
+	golangci-lint run --fix --timeout=5m
+
+.PHONY: lint-short
+lint-short:
+	GOFLAGS="-tags=integration,e2e" \
+	golangci-lint run --fix --new-from-rev HEAD --timeout=5m
 
 
 .PHONY: fmt
