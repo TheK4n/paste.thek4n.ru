@@ -61,3 +61,16 @@ test:
 		-failfast \
 		-count=1 \
 		./...
+
+.PHONY: lint
+lint:
+	GOFLAGS="-tags=integration,e2e" \
+	golangci-lint run --fix
+
+
+.PHONY: fmt
+fmt:
+	go fmt ./...
+	GOFLAGS="-tags=integration,e2e" \
+	golangci-lint fmt
+	go vet ./...

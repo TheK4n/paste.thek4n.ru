@@ -20,12 +20,9 @@ steps:
 
   - name: check-fmt
     image: golang:1.23
-    environment:
-      GOFLAGS: -tags=integration,e2e
     commands:
-      - go fmt ./...
+      - make fmt
       - git diff --exit-code
-      - go vet ./...
     volumes:
       - name: go-build-cache
         path: /root/.cache/go-build
@@ -39,10 +36,8 @@ steps:
 
   - name: lint
     image: golangci/golangci-lint:latest
-    environment:
-      GOFLAGS: -tags=integration,e2e
     commands:
-      - golangci-lint -v run --timeout 5m
+      - make lint
     volumes:
       - name: go-build-cache
         path: /root/.cache/go-build

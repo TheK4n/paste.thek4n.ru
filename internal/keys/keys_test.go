@@ -4,6 +4,7 @@ package keys
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -38,7 +39,7 @@ func TestCache(t *testing.T) {
 		t.Parallel()
 
 		expectedKey := getKeyPrefix(t, "test_key")
-		gotKey, err := Cache(db, timeout, expectedKey, ttl, 0, record)
+		gotKey, err := CacheRequestedKey(db, timeout, expectedKey, ttl, record)
 
 		require.NoError(t, err)
 		assert.Equal(t, expectedKey, gotKey)
@@ -48,21 +49,20 @@ func TestCache(t *testing.T) {
 		t.Parallel()
 
 		expectedKey := getKeyPrefix(t, "taken_key")
-		_, errCaching := Cache(db, timeout, expectedKey, ttl, 10, record)
+		_, errCaching := CacheRequestedKey(db, timeout, expectedKey, ttl, record)
 
-		_, errCachingSecond := Cache(db, timeout, expectedKey, ttl, 10, record)
+		_, errCachingSecond := CacheRequestedKey(db, timeout, expectedKey, ttl, record)
 
 		require.NoError(t, errCaching)
 		assert.Error(t, errCachingSecond)
 		assert.Equal(t, ErrKeyAlreadyTaken, errCachingSecond)
 	})
 
-	t.Run("cache with empty key returns generated key with requested length", func(t *testing.T) {
+	t.Run("CacheGeneratedKey returns generated key with requested length", func(t *testing.T) {
 		t.Parallel()
 
-		requestedKey := ""
 		keyLength := 10
-		gotKey, errCaching := Cache(db, timeout, requestedKey, ttl, keyLength, record)
+		gotKey, errCaching := CacheGeneratedKey(db, timeout, ttl, keyLength, record)
 		require.NoError(t, errCaching)
 
 		assert.Len(t, gotKey, keyLength)
@@ -71,9 +71,8 @@ func TestCache(t *testing.T) {
 	t.Run("get by generated random key has expected body", func(t *testing.T) {
 		t.Parallel()
 
-		requestedKey := ""
 		keyLength := 10
-		gotKey, errCaching := Cache(db, timeout, requestedKey, ttl, keyLength, record)
+		gotKey, errCaching := CacheGeneratedKey(db, timeout, ttl, keyLength, record)
 		require.NoError(t, errCaching)
 
 		result, err := Get(db, gotKey, timeout)
@@ -97,7 +96,7 @@ func TestGet(t *testing.T) {
 		_, err := Get(db, key, timeout)
 
 		require.Error(t, err)
-		assert.Equal(t, storage.ErrKeyNotFound, err)
+		assert.Equal(t, storage.ErrKeyNotFound, errors.Unwrap(err))
 	})
 
 	t.Run("record clicks equal number of get requests", func(t *testing.T) {
@@ -105,7 +104,7 @@ func TestGet(t *testing.T) {
 
 		expectedKey := getKeyPrefix(t, "taken_key")
 		requestNumber := 3
-		_, errCaching := Cache(db, timeout, expectedKey, ttl, len(expectedKey), record)
+		_, errCaching := CacheRequestedKey(db, timeout, expectedKey, ttl, record)
 		require.NoError(t, errCaching)
 
 		for range requestNumber {
@@ -126,7 +125,7 @@ func TestGet(t *testing.T) {
 		_, err := GetClicks(db, key, timeout)
 
 		assert.Error(t, err)
-		assert.Equal(t, storage.ErrKeyNotFound, err)
+		assert.Equal(t, storage.ErrKeyNotFound, errors.Unwrap(err))
 	})
 }
 

@@ -25,11 +25,11 @@ func TestReduceQuota(t *testing.T) {
 
 		val, err := db.Client.HGet(ctx, key, "countdown").Int()
 		require.NoError(t, err)
-		assert.Equal(t, config.QUOTA-1, val)
+		assert.Equal(t, config.Quota-1, val)
 		ttl := db.Client.TTL(ctx, key).Val()
 
 		assert.True(t, ttl > 0)
-		assert.True(t, ttl <= config.QUOTA_RESET_PERIOD)
+		assert.True(t, ttl <= config.QuotaResetPeriod)
 	})
 
 	t.Run("decrement existing record", func(t *testing.T) {
@@ -40,7 +40,7 @@ func TestReduceQuota(t *testing.T) {
 
 		val, err := db.Client.HGet(ctx, key, "countdown").Int()
 		require.NoError(t, err)
-		assert.Equal(t, config.QUOTA-1, val)
+		assert.Equal(t, config.Quota-1, val)
 	})
 }
 

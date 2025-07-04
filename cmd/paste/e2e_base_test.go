@@ -76,12 +76,12 @@ func setupTestServer(t *testing.T) *testServer {
 	require.NoError(t, apikeysDb.Client.FlushDB(ctx).Err())
 	require.NoError(t, quotaDb.Client.FlushDB(ctx).Err())
 
-	opts := Options{Health: true}
+	opts := options{Health: true}
 
 	app := handlers.Application{
 		Version:   "test",
 		DB:        *db,
-		ApiKeysDB: *apikeysDb,
+		APIKeysDB: *apikeysDb,
 		QuotaDB:   *quotaDb,
 	}
 

@@ -10,12 +10,13 @@ import (
 	"github.com/thek4n/paste.thek4n.name/internal/config"
 )
 
+// QuotaDB contains db connection.
 type QuotaDB struct {
 	Client *redis.Client
 }
 
 // ReduceQuota create specified key with expiration time
-// and decreases countdown field for key
+// and decreases countdown field for key.
 func (db *QuotaDB) ReduceQuota(ctx context.Context, key string) error {
 	exists, err := db.exists(ctx, key)
 	if err != nil {
@@ -29,16 +30,20 @@ func (db *QuotaDB) ReduceQuota(ctx context.Context, key string) error {
 			redis.call("EXPIRE", KEYS[1], ARGV[3])
 			return 1
 		`
-		err := db.Client.Eval(ctx, script, []string{key}, "countdown", config.QUOTA, int(config.QUOTA_RESET_PERIOD.Seconds())).Err()
+		err := db.Client.Eval(ctx, script, []string{key}, "countdown", config.Quota, int(config.QuotaResetPeriod.Seconds())).Err()
 		if err != nil {
-			return err
+			return fmt.Errorf("fail to set new quota key: %w", err)
 		}
 	}
 
-	return db.Client.HIncrBy(ctx, key, "countdown", -1).Err()
+	err = db.Client.HIncrBy(ctx, key, "countdown", -1).Err()
+	if err != nil {
+		return fmt.Errorf("fail to decrease quota: %w", err)
+	}
+	return nil
 }
 
-// IsQoutaValid checks is quota for specified key is not expired
+// IsQuotaValid checks is quota for specified key is not expired.
 func (db *QuotaDB) IsQuotaValid(ctx context.Context, key string) (bool, error) {
 	exists, err := db.exists(ctx, key)
 	if err != nil {
@@ -50,7 +55,7 @@ func (db *QuotaDB) IsQuotaValid(ctx context.Context, key string) (bool, error) {
 
 	res, err := db.Client.HGet(ctx, key, "countdown").Int()
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("fail to get countdown for key: %w", err)
 	}
 	return res > 0, nil
 }
@@ -58,12 +63,13 @@ func (db *QuotaDB) IsQuotaValid(ctx context.Context, key string) (bool, error) {
 func (db *QuotaDB) exists(ctx context.Context, key string) (bool, error) {
 	keysNumber, err := db.Client.Exists(ctx, key).Uint64()
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("fail to check key existing: %w", err)
 	}
 
 	return keysNumber > 0, nil
 }
 
+// InitQuotaStorageDB returns valid QuotaDB.
 func InitQuotaStorageDB(dbHost string, dbPort int) (*QuotaDB, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr:         fmt.Sprintf("%s:%d", dbHost, dbPort),
@@ -76,7 +82,7 @@ func InitQuotaStorageDB(dbHost string, dbPort int) (*QuotaDB, error) {
 	})
 
 	if err := client.Ping(context.Background()).Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fail to check connection: %w", err)
 	}
 
 	log.Printf("Connected to database 2 (quota) on %s:%d\n", dbHost, dbPort)

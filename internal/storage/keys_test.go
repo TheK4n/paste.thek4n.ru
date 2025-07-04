@@ -111,7 +111,7 @@ func TestKeysDB_Get(t *testing.T) {
 
 	t.Run("get compressed data", func(t *testing.T) {
 		compressedKey := getKeyPrefix(t, "compressed_key")
-		largeBody := bytes.Repeat([]byte("a"), config.COMPRESS_THRESHOLD_BYTES+1)
+		largeBody := bytes.Repeat([]byte("a"), config.CompressThresholdBytes+1)
 		record := KeyRecord{
 			Body: largeBody,
 		}
@@ -187,7 +187,7 @@ func TestKeysDB_Set(t *testing.T) {
 
 	t.Run("auto compress large data", func(t *testing.T) {
 		key := getKeyPrefix(t, "large_key")
-		largeBody := bytes.Repeat([]byte("a"), config.COMPRESS_THRESHOLD_BYTES+1)
+		largeBody := bytes.Repeat([]byte("a"), config.CompressThresholdBytes+1)
 		record := KeyRecord{
 			Body: largeBody,
 		}

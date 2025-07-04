@@ -1,3 +1,4 @@
+// Enter point to paste service.
 package main
 
 import (
@@ -6,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/thek4n/paste.thek4n.name/internal/handlers"
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
@@ -13,11 +15,9 @@ import (
 	flags "github.com/jessevdk/go-flags"
 )
 
-var (
-	version = "built-from-source"
-)
+var version = "built-from-source"
 
-type Options struct {
+type options struct {
 	Port   int    `short:"p" long:"port" default:"80" description:"Port to listen"`
 	Host   string `long:"host" default:"localhost" description:"Host to listen"`
 	Health bool   `long:"health" description:"Enable health handler on /health/ URL"`
@@ -26,7 +26,7 @@ type Options struct {
 }
 
 func main() {
-	var opts Options
+	var opts options
 	_, err := flags.Parse(&opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Parse params error: %s\n", err)
@@ -36,7 +36,7 @@ func main() {
 	runServer(&opts)
 }
 
-func runServer(opts *Options) {
+func runServer(opts *options) {
 	log.Println("Connecting to database...")
 
 	redisHost := os.Getenv("REDIS_HOST")
@@ -65,7 +65,7 @@ func runServer(opts *Options) {
 	handlers := handlers.Application{
 		Version:   version,
 		DB:        *db,
-		ApiKeysDB: *apikeysDb,
+		APIKeysDB: *apikeysDb,
 		QuotaDB:   *quotaDb,
 	}
 
@@ -73,11 +73,17 @@ func runServer(opts *Options) {
 
 	hostport := fmt.Sprintf("%s:%d", opts.Host, opts.Port)
 
+	server := &http.Server{
+		Addr:              hostport,
+		ReadHeaderTimeout: 3 * time.Second,
+		Handler:           mux,
+	}
+
 	log.Printf("Server started on %s ...", hostport)
-	log.Fatal(http.ListenAndServe(hostport, mux))
+	log.Fatal(server.ListenAndServe())
 }
 
-func getMux(h *handlers.Application, opts *Options) *http.ServeMux {
+func getMux(h *handlers.Application, opts *options) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{key}/{$}", h.Get)
 	mux.HandleFunc("GET /{key}/clicks/{$}", h.GetClicks)

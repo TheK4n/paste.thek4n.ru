@@ -70,7 +70,7 @@ func TestCache(t *testing.T) {
 	t.Run("unpriveleged cache with big body returns 413", func(t *testing.T) {
 		t.Parallel()
 
-		largeBody := bytes.Repeat([]byte("a"), config.UNPREVELEGED_MAX_BODY_SIZE+100)
+		largeBody := bytes.Repeat([]byte("a"), config.UnprevelegedMaxBodySize+100)
 
 		resp, err := ts.post("/", string(largeBody))
 		require.NoError(t, err)

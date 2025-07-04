@@ -1,3 +1,4 @@
+// Package handlers provides handlers
 package handlers
 
 import (
@@ -19,33 +20,34 @@ import (
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
 
-const REDIRECT_BODY = `<html><head>
+const redirectBody = `<html><head>
 <title>303 See Other</title>
 </head><body>
 <h1>See Other</h1>
 <p>The document has moved <a href="%s">here</a>.</p>
 </body></html>`
 
+// Application struct contains databases connections.
 type Application struct {
 	Version   string
 	DB        storage.KeysDB
-	ApiKeysDB storage.APIKeysDB
+	APIKeysDB storage.APIKeysDB
 	QuotaDB   storage.QuotaDB
 }
 
-type HealthcheckResponse struct {
+type healthcheckResponse struct {
 	Version      string `json:"version"`
 	Availability bool   `json:"availability"`
 	Msg          string `json:"msg"`
 }
 
-// Checks database availability and returns version
+// Healthcheck checks database availability and returns version.
 func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := getClientIP(r)
 	availability := true
 	msg := "ok"
 
-	ctx, cancel := context.WithTimeout(context.Background(), config.HEALTHCHECK_TIMEOUT)
+	ctx, cancel := context.WithTimeout(context.Background(), config.HealthcheckTimeout)
 	defer cancel()
 
 	if !app.DB.Ping(ctx) {
@@ -53,7 +55,7 @@ func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
 		msg = "Error connection to database"
 	}
 
-	resp := &HealthcheckResponse{
+	resp := &healthcheckResponse{
 		Version:      app.Version,
 		Availability: availability,
 		Msg:          msg,
@@ -68,8 +70,7 @@ func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write([]byte(answer))
-
+	_, err = w.Write(answer)
 	if err != nil {
 		log.Printf("Error on answer healthcheck: %s, suffered user %s", err.Error(), remoteAddr)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -77,6 +78,7 @@ func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Cache handle request to set key.
 func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := getClientIP(r)
 	authorized := false
@@ -159,7 +161,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if length < config.UNPRIVELEGED_MIN_KEY_LENGTH {
+	if length < config.UnprivelegedMinKeyLength {
 		if !authorized {
 			log.Printf(
 				"Unathorized attempt to set short key with length %d",
@@ -183,7 +185,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isUrl, errGetURL := getURL(r)
+	isURL, errGetURL := getURL(r)
 	if errGetURL != nil {
 		log.Printf(
 			"Error on validating url argument: %s. Response to client %s with code %d",
@@ -220,16 +222,16 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !authorized {
-		if r.ContentLength > config.UNPREVELEGED_MAX_BODY_SIZE {
+		if r.ContentLength > config.UnprevelegedMaxBodySize {
 			w.WriteHeader(http.StatusRequestEntityTooLarge)
-			_, _ = fmt.Fprintf(w, "Body too large. Maximum is %d bytes", config.UNPREVELEGED_MAX_BODY_SIZE)
+			_, _ = fmt.Fprintf(w, "Body too large. Maximum is %d bytes", config.UnprevelegedMaxBodySize)
 			return
 		}
 	}
 
-	if r.ContentLength > config.PREVELEGED_MAX_BODY_SIZE {
+	if r.ContentLength > config.PrevelegedMaxBodySize {
 		w.WriteHeader(http.StatusRequestEntityTooLarge)
-		_, _ = fmt.Fprintf(w, "Body too large. Maximum is %d bytes", config.PREVELEGED_MAX_BODY_SIZE)
+		_, _ = fmt.Fprintf(w, "Body too large. Maximum is %d bytes", config.PrevelegedMaxBodySize)
 		return
 	}
 
@@ -246,9 +248,9 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if isUrl {
+	if isURL {
 		body = []byte(strings.TrimSpace(string(body)))
-		if !validateUrl(string(body)) {
+		if !validateURL(string(body)) {
 			log.Printf(
 				"Error on validating url body. Response to client %s with code %d",
 				remoteAddr,
@@ -264,18 +266,27 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	record.Body = body
 	record.Disposable = disposable != 0
 	record.Countdown = disposable
-	record.URL = isUrl
+	record.URL = isURL
 	record.Clicks = 0
 
-	key, err := keys.Cache(app.DB, 4*time.Second, requestedKey, ttl, length, record)
-	if err != nil {
-		if err == keys.ErrKeyAlreadyTaken || errors.Unwrap(err) == keys.ErrKeyAlreadyTaken {
-			log.Printf("Try to take already taken key from %s: Error: %s", remoteAddr, err)
-			w.WriteHeader(http.StatusConflict)
-			_, _ = fmt.Fprint(w, "Key already taken")
-			return
-		}
+	var key string
+	var err error
 
+	if requestedKey == "" {
+		key, err = keys.CacheGeneratedKey(app.DB, 4*time.Second, ttl, length, record)
+	} else {
+		key, err = keys.CacheRequestedKey(app.DB, 4*time.Second, requestedKey, ttl, record)
+		if err != nil {
+			if errors.Is(err, keys.ErrKeyAlreadyTaken) {
+				log.Printf("Try to take already taken key from %s: Error: %s", remoteAddr, err)
+				w.WriteHeader(http.StatusConflict)
+				_, _ = fmt.Fprint(w, "Key already taken")
+				return
+			}
+		}
+	}
+
+	if err != nil {
 		log.Printf("Error on setting key: %s, suffered user %s", err, remoteAddr)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -294,9 +305,10 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Set key '%s' size=%d ttl=%s countdown=%d url=%t from %s", key, len(body), ttl, disposable, isUrl, remoteAddr)
+	log.Printf("Set key '%s' size=%d ttl=%s countdown=%d url=%t from %s", key, len(body), ttl, disposable, isURL, remoteAddr)
 }
 
+// Get handle getting key.
 func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := getClientIP(r)
 	key := r.PathValue("key")
@@ -316,20 +328,19 @@ func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 
 			log.Printf("Not found by key '%s' from %s", key, remoteAddr)
 			return
-		} else {
-			log.Printf(
-				"Error on getting key: %s, suffered user %s",
-				getKeyErr.Error(),
-				remoteAddr,
-			)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
 		}
+		log.Printf(
+			"Error on getting key: %s, suffered user %s",
+			getKeyErr.Error(),
+			remoteAddr,
+		)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	if record.URL {
 		answer := make([]byte, 0)
-		answer = fmt.Appendf(answer, REDIRECT_BODY, string(record.Body))
+		answer = fmt.Appendf(answer, redirectBody, string(record.Body))
 		w.Header().Set("content-type", http.DetectContentType(answer))
 		http.Redirect(w, r, strings.TrimSpace(string(record.Body)), http.StatusSeeOther)
 		_, writeErr := w.Write(answer)
@@ -353,6 +364,7 @@ func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Get content by key '%s' from %s", key, remoteAddr)
 }
 
+// GetClicks handle getting clicks for key request.
 func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := getClientIP(r)
 	key := r.PathValue("key")
@@ -371,15 +383,14 @@ func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
 
 			log.Printf("Not found by key '%s' from %s", key, remoteAddr)
 			return
-		} else {
-			log.Printf(
-				"Error on getting key: %s, suffered user %s",
-				err.Error(),
-				remoteAddr,
-			)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
 		}
+		log.Printf(
+			"Error on getting key: %s, suffered user %s",
+			err.Error(),
+			remoteAddr,
+		)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	body := []byte(strconv.Itoa(clicks))
@@ -399,20 +410,20 @@ func getTTL(r *http.Request) (time.Duration, error) {
 	ttlQuery := r.URL.Query().Get("ttl")
 
 	if ttlQuery == "" {
-		return config.DEFAULT_TTL_SECONDS, nil
+		return config.DefaultTTL, nil
 	}
 
 	ttl, err := time.ParseDuration(ttlQuery)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("fail to parse duration: %w", err)
 	}
 
-	if ttl < config.MIN_TTL {
-		return 0, fmt.Errorf("TTL can`t be less then %s", config.MIN_TTL)
+	if ttl < config.MinTTL {
+		return 0, fmt.Errorf("TTL can`t be less then %s", config.MinTTL)
 	}
 
-	if ttl > config.MAX_TTL {
-		return 0, fmt.Errorf("TTL can`t be more then %s", config.MAX_TTL)
+	if ttl > config.MaxTTL {
+		return 0, fmt.Errorf("TTL can`t be more then %s", config.MaxTTL)
 	}
 
 	return ttl, nil
@@ -425,16 +436,16 @@ func getRequestedKey(r *http.Request) (string, error) {
 		return "", nil
 	}
 
-	if len(requestedKey) > config.MAX_KEY_LENGTH {
+	if len(requestedKey) > config.MaxKeyLength {
 		return "", fmt.Errorf("requested key length more then max")
 	}
 
-	if len(requestedKey) < config.PRIVELEGED_MIN_KEY_LENGTH {
+	if len(requestedKey) < config.PrivelegedMinKeyLength {
 		return "", fmt.Errorf("requested key length less then min")
 	}
 
 	for _, char := range requestedKey {
-		if !strings.ContainsRune(config.CHARSET, char) {
+		if !strings.ContainsRune(config.Charset, char) {
 			return "", fmt.Errorf("requested key contains illegal char")
 		}
 	}
@@ -451,7 +462,7 @@ func getDisposable(r *http.Request) (int, error) {
 
 	disposable, err := strconv.Atoi(disposableQuery)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("fail to parse disposable: %w", err)
 	}
 
 	if disposable < 0 {
@@ -469,20 +480,20 @@ func getLength(r *http.Request) (int, error) {
 	lengthQuery := r.URL.Query().Get("len")
 
 	if lengthQuery == "" {
-		return config.DEFAULT_KEY_LENGTH, nil
+		return config.DefaultKeyLength, nil
 	}
 
 	length, err := strconv.Atoi(lengthQuery)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("fail to parse length: %w", err)
 	}
 
-	if length < config.PRIVELEGED_MIN_KEY_LENGTH {
-		return 0, fmt.Errorf("length can`t be less then %d", config.PRIVELEGED_MIN_KEY_LENGTH)
+	if length < config.PrivelegedMinKeyLength {
+		return 0, fmt.Errorf("length can`t be less then %d", config.PrivelegedMinKeyLength)
 	}
 
-	if length > config.MAX_KEY_LENGTH {
-		return 0, fmt.Errorf("length can`t be more then %d", config.MAX_KEY_LENGTH)
+	if length > config.MaxKeyLength {
+		return 0, fmt.Errorf("length can`t be more then %d", config.MaxKeyLength)
 	}
 
 	return length, nil
@@ -519,13 +530,13 @@ func detectProto(r *http.Request) string {
 	return "http"
 }
 
-func validateUrl(str string) bool {
+func validateURL(str string) bool {
 	u, err := url.Parse(str)
 	return err == nil && u.Scheme != "" && u.Host != ""
 }
 
 func (app *Application) validateApikey(str string) bool {
-	record, err := app.ApiKeysDB.Get(context.Background(), str)
+	record, err := app.APIKeysDB.Get(context.Background(), str)
 	if err != nil {
 		return false
 	}
