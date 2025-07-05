@@ -3,13 +3,6 @@ OUTPUTDIR ?= bin/
 
 default: build
 
-.PHONY: build
-build:
-	CGO_ENABLED=0 GOOS=linux \
-	go build -v \
-		-ldflags "-w -s -X 'main.version=$(APP_VERSION)'" \
-		-o $(OUTPUTDIR) ./...
-
 .PHONY: e2e
 e2e:
 	GOMAXPROCS=1 \
@@ -78,3 +71,11 @@ fmt:
 	go fmt ./...
 	GOFLAGS="-tags=integration,e2e" \
 	go vet ./...
+
+.PHONY: build
+build:
+	CGO_ENABLED=0 GOOS=linux \
+	go build -v \
+		-trimpath \
+		-ldflags "-w -s -X 'main.version=$(APP_VERSION)'" \
+		-o $(OUTPUTDIR) ./...
