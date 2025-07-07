@@ -33,6 +33,6 @@ repos:
     rev: v2.1.6
     hooks:
       - id: golangci-lint-full
-        entry: env GOFLAGS="-tags=integration,e2e" golangci-lint run --new-from-rev HEAD --fix --timeout=5m --timeout=5m
+        entry: env GOFLAGS="-tags=integration,e2e" golangci-lint run --new-from-rev HEAD --fix --timeout=5m
       - id: golangci-lint-fmt
         entry: env GOFLAGS="-tags=integration,e2e" golangci-lint fmt

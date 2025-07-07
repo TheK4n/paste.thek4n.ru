@@ -1,6 +1,8 @@
+// Ping tool to check health of paste service
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,18 +11,18 @@ import (
 	flags "github.com/jessevdk/go-flags"
 )
 
-type Options struct {
+type options struct {
 	Method string `long:"method" choice:"simple" choice:"200" choice:"json" default:"simple"`
 }
 
-type HealthcheckResponse struct {
+type healthcheckResponse struct {
 	Version      string `json:"version"`
 	Availability bool   `json:"availability"`
 	Msg          string `json:"msg"`
 }
 
 func main() {
-	var opts Options
+	var opts options
 	args, err := flags.Parse(&opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Parse params error: %s\n", err)
@@ -34,11 +36,19 @@ func main() {
 
 	switch opts.Method {
 	case "simple":
-		simpleHealthcheck(args[0])
+		resp := simpleHealthcheck(args[0])
+		err = resp.Body.Close()
 	case "200":
-		simpleHealthcheck200(args[0])
+		resp := simpleHealthcheck200(args[0])
+		err = resp.Body.Close()
 	case "json":
-		jsonHealthcheck(args[0])
+		resp := jsonHealthcheck(args[0])
+		err = resp.Body.Close()
+	}
+
+	if err != nil {
+		fmt.Printf("Error: %s", err)
+		os.Exit(1)
 	}
 
 	os.Exit(0)
@@ -47,9 +57,8 @@ func main() {
 func jsonHealthcheck(url string) *http.Response {
 	resp := simpleHealthcheck200(url)
 
-	healthCheckResp := HealthcheckResponse{}
+	healthCheckResp := healthcheckResponse{}
 	err := json.NewDecoder(resp.Body).Decode(&healthCheckResp)
-
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error reading server answer: ", err)
 		os.Exit(1)
@@ -76,7 +85,6 @@ func simpleHealthcheck200(url string) *http.Response {
 
 func simpleHealthcheck(url string) *http.Response {
 	resp, err := getRequest(url)
-
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -86,8 +94,13 @@ func simpleHealthcheck(url string) *http.Response {
 }
 
 func getRequest(url string) (*http.Response, error) {
-	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	req.Header.Add("Accept", "application/json")
 
-	return http.DefaultClient.Do(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("cannot make request: %s", err)
+	}
+
+	return resp, nil
 }

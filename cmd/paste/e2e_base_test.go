@@ -4,7 +4,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/thek4n/paste.thek4n.name/internal/apikeys"
 	"github.com/thek4n/paste.thek4n.name/internal/handlers"
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
@@ -71,18 +74,30 @@ func setupTestServer(t *testing.T) *testServer {
 	quotaDb, err := storage.InitQuotaStorageDB(redisHost, redisPort)
 	require.NoError(t, err, "failed to connect to quota storage")
 
+	brokerConnectionURL := fmt.Sprintf(
+		"amqp://%s:%s@%s:%d/",
+		"guest",
+		"guest",
+		getBrokerHost_(),
+		5672,
+	)
+	broker, err := apikeys.InitBroker(brokerConnectionURL)
+	require.NoError(t, err, "failed to connect to broker")
+
 	ctx := context.Background()
 	require.NoError(t, db.Client.FlushDB(ctx).Err())
 	require.NoError(t, apikeysDb.Client.FlushDB(ctx).Err())
 	require.NoError(t, quotaDb.Client.FlushDB(ctx).Err())
 
-	opts := Options{Health: true}
+	opts := options{Health: true}
 
 	app := handlers.Application{
 		Version:   "test",
 		DB:        *db,
-		ApiKeysDB: *apikeysDb,
+		APIKeysDB: *apikeysDb,
 		QuotaDB:   *quotaDb,
+		Logger:    *slog.Default(),
+		Broker:    *broker,
 	}
 
 	return &testServer{
@@ -99,4 +114,12 @@ func getRedisHost() string {
 		return "localhost"
 	}
 	return redisHost
+}
+
+func getBrokerHost_() string {
+	brokerHost := os.Getenv("BROKER_HOST")
+	if brokerHost == "" {
+		return "localhost"
+	}
+	return brokerHost
 }

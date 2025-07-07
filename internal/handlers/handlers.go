@@ -1,3 +1,4 @@
+// Package handlers provides handlers
 package handlers
 
 import (
@@ -6,13 +7,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/thek4n/paste.thek4n.name/internal/apikeys"
 	"github.com/thek4n/paste.thek4n.name/internal/config"
@@ -21,34 +24,36 @@ import (
 	apikeysm "github.com/thek4n/paste.thek4n.name/pkg/apikeys"
 )
 
-const REDIRECT_BODY = `<html><head>
+const redirectBody = `<html><head>
 <title>303 See Other</title>
 </head><body>
 <h1>See Other</h1>
 <p>The document has moved <a href="%s">here</a>.</p>
 </body></html>`
 
+// Application struct contains databases connections.
 type Application struct {
 	Version   string
 	DB        storage.KeysDB
-	ApiKeysDB storage.APIKeysDB
+	APIKeysDB storage.APIKeysDB
 	QuotaDB   storage.QuotaDB
 	Broker    apikeys.Broker
+	Logger    slog.Logger
 }
 
-type HealthcheckResponse struct {
+type healthcheckResponse struct {
 	Version      string `json:"version"`
 	Availability bool   `json:"availability"`
 	Msg          string `json:"msg"`
 }
 
-// Checks database availability and returns version
+// Healthcheck checks database availability and returns version.
 func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := getClientIP(r)
 	availability := true
 	msg := "ok"
 
-	ctx, cancel := context.WithTimeout(context.Background(), config.HEALTHCHECK_TIMEOUT)
+	ctx, cancel := context.WithTimeout(context.Background(), config.HealthcheckTimeout)
 	defer cancel()
 
 	if !app.DB.Ping(ctx) {
@@ -56,7 +61,7 @@ func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
 		msg = "Error connection to database"
 	}
 
-	resp := &HealthcheckResponse{
+	resp := &healthcheckResponse{
 		Version:      app.Version,
 		Availability: availability,
 		Msg:          msg,
@@ -64,47 +69,79 @@ func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
 
 	answer, err := json.Marshal(resp)
 	if err != nil {
-		log.Printf("Error on answer healthcheck: %s, suffered user %s", err.Error(), remoteAddr)
+		app.Logger.Error(
+			"Error on answer healthcheck",
+			"error", err,
+			"source_ip", remoteAddr,
+			"answer_code", http.StatusInternalServerError,
+		)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write([]byte(answer))
-
+	_, err = w.Write(answer)
 	if err != nil {
-		log.Printf("Error on answer healthcheck: %s, suffered user %s", err.Error(), remoteAddr)
+		app.Logger.Error(
+			"Error on answer healthcheck",
+			"error", err,
+			"source_ip", remoteAddr,
+			"answer_code", http.StatusInternalServerError,
+		)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 }
 
+// Cache handle request to set key.
 func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := getClientIP(r)
+	requestUUID := uuid.NewString()
+
+	logger := app.Logger.With(
+		"source_ip", remoteAddr,
+		"request_id", requestUUID,
+	)
+
+	logger.Debug(
+		"Start caching key",
+	)
+
 	authorized := false
 	apikey := r.URL.Query().Get("apikey")
-	apikeyID := ""
-	var err error
 	if apikey != "" {
-		authorized = app.validateApikey(apikey)
+		var err error
+		authorized, err = app.validateApikey(apikey)
+		if err != nil {
+			logger.Warn(
+				"Fail to check apikey",
+				"error", err,
+				"answer_code", http.StatusInternalServerError,
+			)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 
+	apikeyID := ""
+	var getAPIKeyIDErr error
 	if authorized {
-		apikeyID, err = app.getApiKeyID(apikey)
-		if err != nil {
-			log.Printf("WARNING: cant fetch apikey id for '%s'", apikey)
+		apikeyID, getAPIKeyIDErr = app.getAPIKeyID(apikey)
+		if getAPIKeyIDErr != nil {
+			logger.Warn(
+				"fail to fetch apikey id",
+			)
 		}
 	}
 
 	if !authorized {
 		quotaValid, err := app.QuotaDB.IsQuotaValid(context.Background(), remoteAddr)
 		if err != nil {
-			log.Printf(
-				"Error on checking quota: %s. Response to client %s with code %d",
-				err.Error(),
-				remoteAddr,
-				http.StatusInternalServerError,
+			logger.Error(
+				"Fail to check quota",
+				"error", err,
+				"answer_code", http.StatusInternalServerError,
 			)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -117,11 +154,10 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 
 		err = app.QuotaDB.ReduceQuota(context.Background(), remoteAddr)
 		if err != nil {
-			log.Printf(
-				"Error on reduce quota: %s. Response to client %s with code %d",
-				err.Error(),
-				remoteAddr,
-				http.StatusInternalServerError,
+			logger.Error(
+				"Fail to reduce quota",
+				"error", err,
+				"answer_code", http.StatusInternalServerError,
 			)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -129,20 +165,14 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if authorized {
-		log.Printf(
-			"Using authorized apikey from %s",
-			remoteAddr,
+		logger.Info(
+			"Authorized apikey",
+			"apikey_id", apikeyID,
 		)
 	}
 
 	ttl, errGetTTL := getTTL(r)
 	if errGetTTL != nil {
-		log.Printf(
-			"Error on parsing ttl: %s. Response to client %s with code %d",
-			errGetTTL.Error(),
-			remoteAddr,
-			http.StatusUnprocessableEntity,
-		)
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		_, _ = fmt.Fprint(w, "Invalid 'ttl' parameter")
 		return
@@ -150,67 +180,57 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 
 	if ttl == time.Duration(0) {
 		if !authorized {
-			log.Printf(
+			logger.Warn(
 				"Unathorized attempt to set persist key",
+				"answer_code", http.StatusUnauthorized,
 			)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		err := app.Broker.SendAPIKeyUsageLog(apikeyID, apikeysm.UsageReason_PERSISTKEY, remoteAddr)
 		if err != nil {
-			log.Printf("warning: error to publish to broker")
+			logger.Warn(
+				"fail to publish to broker",
+				"error", err,
+			)
 		}
 	}
 
 	length, errGetLength := getLength(r)
 	if errGetLength != nil {
-		log.Printf(
-			"Error on parsing length: %s. Response to client %s with code %d",
-			errGetLength.Error(),
-			remoteAddr,
-			http.StatusUnprocessableEntity,
-		)
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		_, _ = fmt.Fprint(w, "Invalid 'len' parameter")
 		return
 	}
 
-	if length < config.UNPRIVELEGED_MIN_KEY_LENGTH {
+	if length < config.UnprivelegedMinKeyLength {
 		if !authorized {
-			log.Printf(
-				"Unathorized attempt to set short key with length %d",
-				length,
+			logger.Warn(
+				"Unathorized attempt to set short key",
+				"requested_key_length", length,
+				"answer_code", http.StatusUnauthorized,
 			)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		err := app.Broker.SendAPIKeyUsageLog(apikeyID, apikeysm.UsageReason_CUSTOMKEYLEN, remoteAddr)
 		if err != nil {
-			log.Printf("warning: error to publish to broker")
+			logger.Warn(
+				"fail to publish to broker",
+				"error", err,
+			)
 		}
 	}
 
 	disposable, errGetDisposable := getDisposable(r)
 	if errGetDisposable != nil {
-		log.Printf(
-			"Error on validating disposable argument: %s. Response to client %s with code %d",
-			errGetDisposable.Error(),
-			remoteAddr,
-			http.StatusUnprocessableEntity,
-		)
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		_, _ = fmt.Fprint(w, "Invalid 'disposable' parameter")
 		return
 	}
 
-	isUrl, errGetURL := getURL(r)
+	isURL, errGetURL := getURL(r)
 	if errGetURL != nil {
-		log.Printf(
-			"Error on validating url argument: %s. Response to client %s with code %d",
-			errGetURL.Error(),
-			remoteAddr,
-			http.StatusUnprocessableEntity,
-		)
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		_, _ = fmt.Fprint(w, "Invalid 'url' parameter")
 		return
@@ -218,12 +238,6 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 
 	requestedKey, errGetRequestedKey := getRequestedKey(r)
 	if errGetRequestedKey != nil {
-		log.Printf(
-			"Error on validating 'key' argument: %s. Response to client %s with code %d",
-			errGetRequestedKey.Error(),
-			remoteAddr,
-			http.StatusUnprocessableEntity,
-		)
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		_, _ = fmt.Fprint(w, errGetRequestedKey.Error())
 		return
@@ -231,8 +245,10 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 
 	if !authorized {
 		if requestedKey != "" {
-			log.Printf(
+			logger.Warn(
 				"Unathorized attempt to set custom key",
+				"requested_key", requestedKey,
+				"answer_code", http.StatusUnauthorized,
 			)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -243,54 +259,54 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		if requestedKey != "" {
 			err := app.Broker.SendAPIKeyUsageLog(apikeyID, apikeysm.UsageReason_CUSTOMKEY, remoteAddr)
 			if err != nil {
-				log.Printf("warning: error to publish to broker")
+				logger.Warn(
+					"fail to publish to broker",
+					"error", err,
+				)
 			}
 		}
 	}
 
 	if !authorized {
-		if r.ContentLength > config.UNPREVELEGED_MAX_BODY_SIZE {
+		if r.ContentLength > config.UnprevelegedMaxBodySize {
 			w.WriteHeader(http.StatusRequestEntityTooLarge)
-			_, _ = fmt.Fprintf(w, "Body too large. Maximum is %d bytes", config.UNPREVELEGED_MAX_BODY_SIZE)
+			_, _ = fmt.Fprintf(w, "Body too large. Maximum is %d bytes", config.UnprevelegedMaxBodySize)
 			return
 		}
 	}
 	if authorized {
-		if r.ContentLength > config.UNPREVELEGED_MAX_BODY_SIZE {
+		if r.ContentLength > config.UnprevelegedMaxBodySize {
 			err := app.Broker.SendAPIKeyUsageLog(apikeyID, apikeysm.UsageReason_LARGEBODY, remoteAddr)
 			if err != nil {
-				log.Printf("warning: error to publish to broker")
+				logger.Warn(
+					"fail to publish to broker",
+					"error", err,
+				)
 			}
 		}
 	}
 
-	if r.ContentLength > config.PREVELEGED_MAX_BODY_SIZE {
+	if r.ContentLength > config.PrevelegedMaxBodySize {
 		w.WriteHeader(http.StatusRequestEntityTooLarge)
-		_, _ = fmt.Fprintf(w, "Body too large. Maximum is %d bytes", config.PREVELEGED_MAX_BODY_SIZE)
+		_, _ = fmt.Fprintf(w, "Body too large. Maximum is %d bytes", config.PrevelegedMaxBodySize)
 		return
 	}
 
 	body, readBodyErr := io.ReadAll(r.Body)
 
 	if readBodyErr != io.EOF && readBodyErr != nil {
-		log.Printf(
-			"Error on reading body: %s. Response to client %s with code %d",
-			readBodyErr.Error(),
-			remoteAddr,
-			http.StatusInternalServerError,
+		logger.Error(
+			"Fail to read body",
+			"error", readBodyErr,
+			"answer_code", http.StatusInternalServerError,
 		)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	if isUrl {
+	if isURL {
 		body = []byte(strings.TrimSpace(string(body)))
-		if !validateUrl(string(body)) {
-			log.Printf(
-				"Error on validating url body. Response to client %s with code %d",
-				remoteAddr,
-				http.StatusUnprocessableEntity,
-			)
+		if !validateURL(string(body)) {
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			_, _ = fmt.Fprint(w, "Invalid 'url' parameter")
 			return
@@ -301,19 +317,35 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	record.Body = body
 	record.Disposable = disposable != 0
 	record.Countdown = disposable
-	record.URL = isUrl
+	record.URL = isURL
 	record.Clicks = 0
 
-	key, err := keys.Cache(app.DB, 4*time.Second, requestedKey, ttl, length, record)
-	if err != nil {
-		if err == keys.ErrKeyAlreadyTaken || errors.Unwrap(err) == keys.ErrKeyAlreadyTaken {
-			log.Printf("Try to take already taken key from %s: Error: %s", remoteAddr, err)
-			w.WriteHeader(http.StatusConflict)
-			_, _ = fmt.Fprint(w, "Key already taken")
-			return
-		}
+	var key string
+	var err error
 
-		log.Printf("Error on setting key: %s, suffered user %s", err, remoteAddr)
+	if requestedKey == "" {
+		key, err = keys.CacheGeneratedKey(app.DB, 4*time.Second, ttl, length, record)
+	} else {
+		key, err = keys.CacheRequestedKey(app.DB, 4*time.Second, requestedKey, ttl, record)
+		if err != nil {
+			if errors.Is(err, keys.ErrKeyAlreadyTaken) {
+				logger.Warn(
+					"Attempt to take already taken key",
+					"answer_code", http.StatusConflict,
+				)
+				w.WriteHeader(http.StatusConflict)
+				_, _ = fmt.Fprint(w, "Key already taken")
+				return
+			}
+		}
+	}
+
+	if err != nil {
+		logger.Error(
+			"Fail to set key",
+			"error", err,
+			"answer_code", http.StatusInternalServerError,
+		)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -326,17 +358,44 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 
 	_, answerErr := fmt.Fprintf(w, "%s://%s/%s/", proto, r.Host, key)
 	if answerErr != nil {
-		log.Printf("Error on answer: %s", answerErr.Error())
+		logger.Error(
+			"Fail to answer",
+			"error", answerErr,
+			"answer_code", http.StatusInternalServerError,
+		)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	log.Printf("Set key '%s' size=%d ttl=%s countdown=%d url=%t from %s", key, len(body), ttl, disposable, isUrl, remoteAddr)
+	logger.Info(
+		"Set key",
+		"key", key,
+		"body_size", len(body),
+		"ttl", ttl,
+		"disposable", disposable,
+		"isURL", isURL,
+	)
 }
 
+// Get handle getting key.
 func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := getClientIP(r)
+	requestUUID := uuid.NewString()
+
+	logger := app.Logger.With(
+		"source_ip", remoteAddr,
+		"request_id", requestUUID,
+	)
+
+	logger.Debug(
+		"Start getting key",
+	)
+
 	key := r.PathValue("key")
+
+	logger = logger.With(
+		"key", key,
+	)
 
 	record, getKeyErr := keys.Get(app.DB, key, 4*time.Second)
 
@@ -346,36 +405,43 @@ func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 
 			_, writeErr := w.Write([]byte("404 Not Found"))
 			if writeErr != nil {
-				log.Printf("Error on answer: %s, suffered user %s", writeErr.Error(), remoteAddr)
+				logger.Error(
+					"Fail to answer",
+					"error", writeErr,
+					"answer_code", http.StatusInternalServerError,
+				)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-
-			log.Printf("Not found by key '%s' from %s", key, remoteAddr)
-			return
-		} else {
-			log.Printf(
-				"Error on getting key: %s, suffered user %s",
-				getKeyErr.Error(),
-				remoteAddr,
-			)
-			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		logger.Error(
+			"Fail to get key",
+			"error", getKeyErr,
+			"answer_code", http.StatusInternalServerError,
+		)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	if record.URL {
 		answer := make([]byte, 0)
-		answer = fmt.Appendf(answer, REDIRECT_BODY, string(record.Body))
+		answer = fmt.Appendf(answer, redirectBody, string(record.Body))
 		w.Header().Set("content-type", http.DetectContentType(answer))
 		http.Redirect(w, r, strings.TrimSpace(string(record.Body)), http.StatusSeeOther)
 		_, writeErr := w.Write(answer)
 		if writeErr != nil {
-			log.Printf("Error on answer: %s, suffered user %s", writeErr.Error(), remoteAddr)
+			logger.Error(
+				"Fail to answer",
+				"error", writeErr,
+				"answer_code", http.StatusInternalServerError,
+			)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		log.Printf("Redirect url by key '%s' from %s", key, remoteAddr)
+		logger.Info(
+			"Redirect url",
+		)
 		return
 	}
 
@@ -383,16 +449,38 @@ func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, writeErr := w.Write(record.Body)
 	if writeErr != nil {
-		log.Printf("Error on answer: %s, suffered user %s", writeErr.Error(), remoteAddr)
+		logger.Error(
+			"Fail to answer",
+			"error", writeErr,
+			"answer_code", http.StatusInternalServerError,
+		)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	log.Printf("Get content by key '%s' from %s", key, remoteAddr)
+	logger.Info(
+		"Get content",
+	)
 }
 
+// GetClicks handle getting clicks for key request.
 func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := getClientIP(r)
+	requestUUID := uuid.NewString()
+
+	logger := app.Logger.With(
+		"source_ip", remoteAddr,
+		"request_id", requestUUID,
+	)
+
+	logger.Debug(
+		"Start getting key",
+	)
+
 	key := r.PathValue("key")
+
+	logger = logger.With(
+		"key", key,
+	)
 
 	clicks, err := keys.GetClicks(app.DB, key, 4*time.Second)
 	if err != nil {
@@ -401,22 +489,23 @@ func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
 
 			_, writeErr := fmt.Fprint(w, "404 Not Found")
 			if writeErr != nil {
-				log.Printf("Error on answer: %s, suffered user %s", writeErr.Error(), remoteAddr)
+				logger.Error(
+					"Fail to answer",
+					"error", writeErr,
+					"answer_code", http.StatusInternalServerError,
+				)
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-
-			log.Printf("Not found by key '%s' from %s", key, remoteAddr)
-			return
-		} else {
-			log.Printf(
-				"Error on getting key: %s, suffered user %s",
-				err.Error(),
-				remoteAddr,
-			)
-			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		logger.Error(
+			"Fail to get key clicks",
+			"error", err,
+			"answer_code", http.StatusInternalServerError,
+		)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	body := []byte(strconv.Itoa(clicks))
@@ -425,31 +514,37 @@ func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
 
 	_, writeErr := w.Write(body)
 	if writeErr != nil {
-		log.Printf("Error on answer: %s, suffered user %s", writeErr.Error(), remoteAddr)
+		logger.Error(
+			"Fail to answer",
+			"error", writeErr,
+			"answer_code", http.StatusInternalServerError,
+		)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	log.Printf("Get clicks by key '%s' from %s", key, remoteAddr)
+	logger.Info(
+		"Get clicks",
+	)
 }
 
 func getTTL(r *http.Request) (time.Duration, error) {
 	ttlQuery := r.URL.Query().Get("ttl")
 
 	if ttlQuery == "" {
-		return config.DEFAULT_TTL_SECONDS, nil
+		return config.DefaultTTL, nil
 	}
 
 	ttl, err := time.ParseDuration(ttlQuery)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("fail to parse duration: %w", err)
 	}
 
-	if ttl < config.MIN_TTL {
-		return 0, fmt.Errorf("TTL can`t be less then %s", config.MIN_TTL)
+	if ttl < config.MinTTL {
+		return 0, fmt.Errorf("TTL can`t be less then %s", config.MinTTL)
 	}
 
-	if ttl > config.MAX_TTL {
-		return 0, fmt.Errorf("TTL can`t be more then %s", config.MAX_TTL)
+	if ttl > config.MaxTTL {
+		return 0, fmt.Errorf("TTL can`t be more then %s", config.MaxTTL)
 	}
 
 	return ttl, nil
@@ -462,16 +557,16 @@ func getRequestedKey(r *http.Request) (string, error) {
 		return "", nil
 	}
 
-	if len(requestedKey) > config.MAX_KEY_LENGTH {
+	if len(requestedKey) > config.MaxKeyLength {
 		return "", fmt.Errorf("requested key length more then max")
 	}
 
-	if len(requestedKey) < config.PRIVELEGED_MIN_KEY_LENGTH {
+	if len(requestedKey) < config.PrivelegedMinKeyLength {
 		return "", fmt.Errorf("requested key length less then min")
 	}
 
 	for _, char := range requestedKey {
-		if !strings.ContainsRune(config.CHARSET, char) {
+		if !strings.ContainsRune(config.Charset, char) {
 			return "", fmt.Errorf("requested key contains illegal char")
 		}
 	}
@@ -488,7 +583,7 @@ func getDisposable(r *http.Request) (int, error) {
 
 	disposable, err := strconv.Atoi(disposableQuery)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("fail to parse disposable: %w", err)
 	}
 
 	if disposable < 0 {
@@ -506,20 +601,20 @@ func getLength(r *http.Request) (int, error) {
 	lengthQuery := r.URL.Query().Get("len")
 
 	if lengthQuery == "" {
-		return config.DEFAULT_KEY_LENGTH, nil
+		return config.DefaultKeyLength, nil
 	}
 
 	length, err := strconv.Atoi(lengthQuery)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("fail to parse length: %w", err)
 	}
 
-	if length < config.PRIVELEGED_MIN_KEY_LENGTH {
-		return 0, fmt.Errorf("length can`t be less then %d", config.PRIVELEGED_MIN_KEY_LENGTH)
+	if length < config.PrivelegedMinKeyLength {
+		return 0, fmt.Errorf("length can`t be less then %d", config.PrivelegedMinKeyLength)
 	}
 
-	if length > config.MAX_KEY_LENGTH {
-		return 0, fmt.Errorf("length can`t be more then %d", config.MAX_KEY_LENGTH)
+	if length > config.MaxKeyLength {
+		return 0, fmt.Errorf("length can`t be more then %d", config.MaxKeyLength)
 	}
 
 	return length, nil
@@ -556,24 +651,27 @@ func detectProto(r *http.Request) string {
 	return "http"
 }
 
-func validateUrl(str string) bool {
+func validateURL(str string) bool {
 	u, err := url.Parse(str)
 	return err == nil && u.Scheme != "" && u.Host != ""
 }
 
-func (app *Application) validateApikey(str string) bool {
-	record, err := app.ApiKeysDB.Get(context.Background(), str)
+func (app *Application) validateApikey(str string) (bool, error) {
+	record, err := app.APIKeysDB.Get(context.Background(), str)
+	if errors.Is(err, storage.ErrKeyNotFound) {
+		return false, nil
+	}
 	if err != nil {
-		return false
+		return false, fmt.Errorf("fail to get api key: %w", err)
 	}
 
-	return record.Valid
+	return record.Valid, nil
 }
 
-func (app *Application) getApiKeyID(str string) (string, error) {
-	record, err := app.ApiKeysDB.Get(context.Background(), str)
+func (app *Application) getAPIKeyID(str string) (string, error) {
+	record, err := app.APIKeysDB.Get(context.Background(), str)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("fail to get api key id: %w", err)
 	}
 
 	return record.ID, nil

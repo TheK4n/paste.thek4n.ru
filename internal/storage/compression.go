@@ -3,8 +3,11 @@ package storage
 import (
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
+
+	"github.com/thek4n/paste.thek4n.name/internal/config"
 )
 
 func compress(data []byte) ([]byte, error) {
@@ -40,8 +43,10 @@ func decompress(data []byte) ([]byte, error) {
 	defer bufferPool.Put(buf)
 	buf.Reset()
 	buf.Grow(len(data) * 2)
+	decompressedBodyLimit := int64(config.PrevelegedMaxBodySize)
 
-	if _, err := io.Copy(buf, gz); err != nil {
+	_, err = io.CopyN(buf, gz, decompressedBodyLimit)
+	if !errors.Is(err, io.EOF) && err != nil {
 		return nil, fmt.Errorf("failed to decompress data: %w", err)
 	}
 

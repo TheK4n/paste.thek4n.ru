@@ -3,13 +3,6 @@ OUTPUTDIR ?= bin/
 
 default: build
 
-.PHONY: build
-build:
-	CGO_ENABLED=0 GOOS=linux \
-	go build -v \
-		-ldflags "-w -s -X 'main.version=$(APP_VERSION)'" \
-		-o $(OUTPUTDIR) ./...
-
 .PHONY: e2e
 e2e:
 	GOMAXPROCS=1 \
@@ -61,3 +54,28 @@ test:
 		-failfast \
 		-count=1 \
 		./...
+
+.PHONY: lint
+lint:
+	GOFLAGS="-tags=integration,e2e" \
+	golangci-lint run --fix --timeout=5m
+
+.PHONY: lint-short
+lint-short:
+	GOFLAGS="-tags=integration,e2e" \
+	golangci-lint run --fix --new-from-rev HEAD --timeout=5m
+
+
+.PHONY: fmt
+fmt:
+	go fmt ./...
+	GOFLAGS="-tags=integration,e2e" \
+	go vet ./...
+
+.PHONY: build
+build:
+	CGO_ENABLED=0 GOOS=linux \
+	go build -v \
+		-trimpath \
+		-ldflags "-w -s -X 'main.version=$(APP_VERSION)'" \
+		-o $(OUTPUTDIR) ./...

@@ -1,62 +1,99 @@
+// Package keys is package for requesting keys from db
 package keys
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"time"
 
 	"github.com/thek4n/paste.thek4n.name/internal/config"
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
 )
 
-var (
-	ErrKeyAlreadyTaken = errors.New("key already taken")
-)
+// ErrKeyAlreadyTaken is error when key is already taken.
+var ErrKeyAlreadyTaken = errors.New("key already taken")
 
 // Get key from db using timeout for context.
 func Get(db storage.KeysDB, key string, timeout time.Duration) (storage.KeyRecordAnswer, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	return db.Get(ctx, key)
+	answ, err := db.Get(ctx, key)
+	if err != nil {
+		return answ, fmt.Errorf("failure getting key '%s': %w", key, err)
+	}
+
+	return answ, nil
 }
 
-// Get clicks for key from db using timeout for context.
+// GetClicks for key from db using timeout for context.
 func GetClicks(db storage.KeysDB, key string, timeout time.Duration) (int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	return db.GetClicks(ctx, key)
+	anws, err := db.GetClicks(ctx, key)
+	if err != nil {
+		return anws, fmt.Errorf("failure getting key '%s' clicks: %w", key, err)
+	}
+
+	return anws, nil
 }
 
-// Cache record using timeout for context.
+// CacheRequestedKey record using timeout for context.
 // requestedKey - you can request custom key, if it exists func returns error ErrKeyAlreadyTaken.
-// if requestedKey is empty, func generates new unique key with length.
-// ttl - time to live for key, after this time, key will automaticly deletes.
-func Cache(db storage.KeysDB, timeout time.Duration, requestedKey string, ttl time.Duration, length int, record storage.KeyRecord) (string, error) {
+// ttl - time to live for key, after this time, key will automatically deletes.
+func CacheRequestedKey(
+	db storage.KeysDB,
+	timeout time.Duration,
+	requestedKey string,
+	ttl time.Duration,
+	record storage.KeyRecord,
+) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	var uniqKey string
-	var err error
-	if requestedKey != "" {
-		exists, err := db.Exists(context.Background(), requestedKey)
-		if err != nil {
-			return "", fmt.Errorf("error on checking key: %w", err)
-		}
+	exists, err := db.Exists(context.Background(), requestedKey)
+	if err != nil {
+		return "", fmt.Errorf("error on checking key: %w", err)
+	}
 
-		if !exists {
-			uniqKey = requestedKey
-		} else {
-			return "", ErrKeyAlreadyTaken
-		}
-	} else {
-		uniqKey, err = generateUniqKey(ctx, db, length, config.MAX_KEY_LENGTH, config.ATTEMPTS_TO_INCREASE_KEY_MIN_LENGHT, config.CHARSET)
-		if err != nil {
-			return "", fmt.Errorf("error on generating unique key: %w", err)
-		}
+	if exists {
+		return "", ErrKeyAlreadyTaken
+	}
+
+	err = db.Set(ctx, requestedKey, ttl, record)
+	if err != nil {
+		return "", fmt.Errorf("error on setting key '%s' in db: %w", requestedKey, err)
+	}
+
+	return requestedKey, nil
+}
+
+// CacheGeneratedKey record using timeout for context.
+// ttl - time to live for key, after this time, key will automatically deletes.
+func CacheGeneratedKey(
+	db storage.KeysDB,
+	timeout time.Duration,
+	ttl time.Duration,
+	length int,
+	record storage.KeyRecord,
+) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	uniqKey, err := generateUniqKey(
+		ctx,
+		db,
+		length,
+		config.MaxKeyLength,
+		config.AttemptsToIncreaseKeyMinLenght,
+		config.Charset,
+	)
+	if err != nil {
+		return "", fmt.Errorf("error on generating unique key: %w", err)
 	}
 
 	err = db.Set(ctx, uniqKey, ttl, record)
@@ -67,7 +104,7 @@ func Cache(db storage.KeysDB, timeout time.Duration, requestedKey string, ttl ti
 	return uniqKey, nil
 }
 
-// Generates unique key with minimum lenght of minLength using charset.
+// Generates unique key with minimum length of minLength using charset.
 // increases minLength if was attemptsToIncreaseMinLength attempts generate unique key.
 // Return error if database error or context done or maxLength reached.
 func generateUniqKey(
@@ -76,10 +113,13 @@ func generateUniqKey(
 	attemptsToIncreaseMinLength int,
 	charset string,
 ) (string, error) {
-	key := generateKey(minLength, charset)
+	key, err := generateKey(minLength, charset)
+	if err != nil {
+		return "", fmt.Errorf("fail to generate key: %w", err)
+	}
 	exists, err := db.Exists(ctx, key)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("fail to check is key '%s' exists: %w", key, err)
 	}
 	currentAttemptsCountdown := attemptsToIncreaseMinLength
 
@@ -90,10 +130,13 @@ func generateUniqKey(
 		default:
 		}
 
-		key = generateKey(minLength, charset)
+		key, err = generateKey(minLength, charset)
+		if err != nil {
+			return "", fmt.Errorf("fail generate key: %w", err)
+		}
 		exists, err = db.Exists(ctx, key)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("fail to check is key '%s' exists: %w", key, err)
 		}
 		currentAttemptsCountdown--
 
@@ -110,15 +153,18 @@ func generateUniqKey(
 	return key, nil
 }
 
-// Generate new random key with specified length using charset.
-func generateKey(length int, charset string) string {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+// generateKey generate new random key with specified length using charset.
+func generateKey(length int, charset string) (string, error) {
 	result := make([]byte, length)
 	charsetLen := len(charset)
 
 	for i := range length {
-		result[i] = charset[r.Intn(charsetLen)]
+		nBig, err := rand.Int(rand.Reader, big.NewInt(int64(charsetLen)))
+		if err != nil {
+			return "", fmt.Errorf("failure generate random number: %w", err)
+		}
+		result[i] = charset[nBig.Int64()]
 	}
 
-	return string(result)
+	return string(result), nil
 }
