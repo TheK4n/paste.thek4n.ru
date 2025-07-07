@@ -4,7 +4,6 @@ package storage
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -80,8 +79,6 @@ func InitAPIKeysStorageDB(dbHost string, dbPort int) (*APIKeysDB, error) {
 	if err := client.Ping(context.Background()).Err(); err != nil {
 		return nil, fmt.Errorf("fail to check connection: %w", err)
 	}
-
-	log.Printf("Connected to database 1 (apikeys) on %s:%d\n", dbHost, dbPort)
 
 	return &APIKeysDB{Client: client}, nil
 }

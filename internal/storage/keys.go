@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strconv"
 	"sync"
 	"time"
@@ -68,25 +67,22 @@ func (db *KeysDB) Get(ctx context.Context, key string) (KeyRecordAnswer, error) 
 		return answer, ErrKeyNotFound
 	}
 
-	clicks, clicksErr := db.Client.HIncrBy(ctx, key, "clicks", 1).Result()
+	_, clicksErr := db.Client.HIncrBy(ctx, key, "clicks", 1).Result()
 	if clicksErr != nil {
 		return answer, fmt.Errorf("fail to increase key clicks: %w", clicksErr)
 	}
-	log.Printf("Increased click counter for key '%s', now: %d", key, clicks)
 
 	if record.Disposable {
 		countdown, countdownErr := db.Client.HIncrBy(ctx, key, "countdown", -1).Result()
 		if countdownErr != nil {
 			return answer, fmt.Errorf("fatal error when countdown disposable counter: %w", countdownErr)
 		}
-		log.Printf("Decreased countdown disposable key '%s' when getting, countdown=%d", key, countdown)
 
 		if countdown < 1 {
 			delErr := db.Client.Del(ctx, key).Err()
 			if delErr != nil {
 				return answer, fmt.Errorf("fatal error when delete disposable url: %w", delErr)
 			}
-			log.Printf("Removed disposable key '%s' when getting", key)
 		}
 	}
 
@@ -172,8 +168,6 @@ func InitKeysStorageDB(dbHost string, dbPort int) (*KeysDB, error) {
 	if err := client.Ping(context.Background()).Err(); err != nil {
 		return nil, fmt.Errorf("failed ping to db: %w", err)
 	}
-
-	log.Printf("Connected to database 0 (keys) on %s:%d\n", dbHost, dbPort)
 
 	return &KeysDB{Client: client}, nil
 }

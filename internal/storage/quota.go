@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -84,8 +83,6 @@ func InitQuotaStorageDB(dbHost string, dbPort int) (*QuotaDB, error) {
 	if err := client.Ping(context.Background()).Err(); err != nil {
 		return nil, fmt.Errorf("fail to check connection: %w", err)
 	}
-
-	log.Printf("Connected to database 2 (quota) on %s:%d\n", dbHost, dbPort)
 
 	return &QuotaDB{Client: client}, nil
 }

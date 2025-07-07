@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -83,6 +84,7 @@ func setupTestServer(t *testing.T) *testServer {
 		DB:        *db,
 		APIKeysDB: *apikeysDb,
 		QuotaDB:   *quotaDb,
+		Logger:    *slog.Default(),
 	}
 
 	return &testServer{
