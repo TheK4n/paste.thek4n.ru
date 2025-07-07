@@ -49,6 +49,13 @@ steps:
         - push
         - tag
 
+  - name: wait-for-rabbitmq
+    image: atkrad/wait4x
+    commands:
+      - wait4x tcp rabbitmq-test:5672 -t 30s
+    depends_on:
+      - rabbitmq-test
+
   - name: test
     image: golang:1.23
     environment:
@@ -59,6 +66,7 @@ steps:
     depends_on:
       - test-build
       - redis-test
+      - wait-for-rabbitmq
     volumes:
       - name: go-build-cache
         path: /root/.cache/go-build
@@ -125,6 +133,11 @@ services:
     image: rabbitmq:3
     ports:
       - 5672
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
 
 volumes:
 - name: go-build-cache
