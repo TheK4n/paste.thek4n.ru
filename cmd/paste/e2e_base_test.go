@@ -101,7 +101,7 @@ func setupTestServer(t *testing.T) *testServer {
 	}
 
 	return &testServer{
-		Server:    httptest.NewServer(getMux(&app, &opts)),
+		Server:    httptest.NewServer(newMux(&app, &opts)),
 		db:        db,
 		apiKeysDB: apikeysDb,
 		quotaDB:   quotaDb,

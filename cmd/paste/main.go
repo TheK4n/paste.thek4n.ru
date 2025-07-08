@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/thek4n/paste.thek4n.name/internal/apikeys"
+	"github.com/thek4n/paste.thek4n.name/internal/config"
 	"github.com/thek4n/paste.thek4n.name/internal/handlers"
 	"github.com/thek4n/paste.thek4n.name/internal/storage"
 
@@ -26,7 +27,7 @@ type options struct {
 	DBHost         string `long:"dbhost" default:"localhost" description:"Database host"`
 	ShowVersion    bool   `short:"v" long:"version" description:"Show version and exit"`
 	Logger         string `long:"logger" default:"plain" choice:"json" choice:"plain" description:"Choose type logger"`
-	LogLevel       string `long:"loglevel" default:"INFO" choice:"DEBUG" choice:"debug" choice:"INFO" choice:"info" choice:"WARN" choice:"warn" choice:"ERROR" choice:"error" description:"Logger level"`
+	LogLevel       string `long:"loglevel" default:"INFO" choice:"DEBUG" choice:"debug" choice:"INFO" choice:"info" choice:"WARN" choice:"warn" choice:"ERROR" choice:"error" choice:"TRACE" choice:"trace" description:"Logger level"`
 	BrokerHost     string `long:"brokerhost" default:"localhost" description:"AMQP broker host"`
 	BrokerPort     int    `long:"brokerport" default:"5672" description:"AMQP broker port"`
 	BrokerUser     string `long:"brokeruser" default:"guest" description:"AMQP broker user"`
@@ -50,7 +51,7 @@ func main() {
 }
 
 func runServer(opts *options) {
-	handler, err := getLoggerHandler(opts)
+	handler, err := newLoggerHandler(opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Cant get logger: %s", err)
 		return
@@ -109,7 +110,7 @@ func runServer(opts *options) {
 		Logger:    *logger,
 	}
 
-	mux := getMux(&handlers, opts)
+	mux := newMux(&handlers, opts)
 
 	hostport := fmt.Sprintf("%s:%d", opts.Host, opts.Port)
 
@@ -132,10 +133,37 @@ func getBrokerHost(opts *options) string {
 	return brokerHost
 }
 
-func getLoggerHandler(opts *options) (slog.Handler, error) {
-	handlerOptions := &slog.HandlerOptions{
-		Level: getLoggerLevel(opts.LogLevel),
+func newLoggerHandler(opts *options) (slog.Handler, error) {
+	levels := map[string]slog.Level{
+		"TRACE": config.LevelTrace,
+		"DEBUG": slog.LevelDebug,
+		"WARN":  slog.LevelWarn,
+		"INFO":  slog.LevelInfo,
+		"ERROR": slog.LevelError,
 	}
+	levelNames := map[slog.Leveler]string{
+		config.LevelTrace: "TRACE",
+	}
+
+	addSource := strings.ToUpper(opts.LogLevel) == "TRACE"
+
+	handlerOptions := &slog.HandlerOptions{
+		Level:     levels[strings.ToUpper(opts.LogLevel)],
+		AddSource: addSource,
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.LevelKey {
+				level := a.Value.Any().(slog.Level)
+				levelLabel, exists := levelNames[level]
+				if !exists {
+					levelLabel = level.String()
+				}
+
+				a.Value = slog.StringValue(levelLabel)
+			}
+			return a
+		},
+	}
+
 	if opts.Logger == "plain" {
 		return slog.NewTextHandler(os.Stdout, handlerOptions), nil
 	}
@@ -146,18 +174,7 @@ func getLoggerHandler(opts *options) (slog.Handler, error) {
 	return nil, fmt.Errorf("invalid logger")
 }
 
-func getLoggerLevel(level string) slog.Level {
-	levels := map[string]slog.Level{
-		"DEBUG": slog.LevelDebug,
-		"WARN":  slog.LevelWarn,
-		"INFO":  slog.LevelInfo,
-		"ERROR": slog.LevelError,
-	}
-
-	return levels[strings.ToUpper(level)]
-}
-
-func getMux(h *handlers.Application, opts *options) *http.ServeMux {
+func newMux(h *handlers.Application, opts *options) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{key}/{$}", h.Get)
 	mux.HandleFunc("GET /{key}/clicks/{$}", h.GetClicks)

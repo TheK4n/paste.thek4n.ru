@@ -2,6 +2,7 @@
 package config
 
 import (
+	"log/slog"
 	"time"
 )
 
@@ -54,4 +55,9 @@ const (
 // Compress.
 const (
 	CompressThresholdBytes = 4096
+)
+
+// Logger.
+const (
+	LevelTrace = slog.Level(-8)
 )
