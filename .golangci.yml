@@ -1,6 +1,8 @@
 version: "2"
 run:
   tests: false
+  issues-exit-code: 1
+
 linters:
   enable:
     - bodyclose
@@ -30,6 +32,37 @@ linters:
     generated: lax
     presets:
       - common-false-positives
+
+linters-settings:
+  sloglint:
+    no-mixed-args: false
+    kv-only: true
+    attr-only: true
+    context-only: true
+    static-msg: true
+    no-raw-keys: true
+    key-naming-case: snake
+    args-on-sep-lines: true
+  errcheck:
+    check-type-assertions: true
+  goconst:
+    min-len: 2
+    min-occurrences: 3
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+  govet:
+    check-shadowing: true
+    enable:
+      - fieldalignment
+  nolintlint:
+    require-explanation: true
+    require-specific: true
+
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
