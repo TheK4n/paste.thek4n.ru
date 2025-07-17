@@ -34,6 +34,18 @@ type options struct {
 	BrokerPassword string `long:"brokerpassword" default:"guest" description:"AMQP broker password"`
 }
 
+func (o *options) getLogLevel() slog.Level {
+	levels := map[string]slog.Level{
+		"TRACE": config.LevelTrace,
+		"DEBUG": slog.LevelDebug,
+		"WARN":  slog.LevelWarn,
+		"INFO":  slog.LevelInfo,
+		"ERROR": slog.LevelError,
+	}
+
+	return levels[strings.ToUpper(o.LogLevel)]
+}
+
 func main() {
 	var opts options
 	_, err := flags.Parse(&opts)
@@ -134,22 +146,14 @@ func getBrokerHost(opts *options) string {
 }
 
 func newLoggerHandler(opts *options) (slog.Handler, error) {
-	levels := map[string]slog.Level{
-		"TRACE": config.LevelTrace,
-		"DEBUG": slog.LevelDebug,
-		"WARN":  slog.LevelWarn,
-		"INFO":  slog.LevelInfo,
-		"ERROR": slog.LevelError,
-	}
 	levelNames := map[slog.Leveler]string{
 		config.LevelTrace: "TRACE",
 	}
 
-	addSource := strings.ToUpper(opts.LogLevel) == "TRACE"
-
+	shouldAddSource := opts.getLogLevel() == config.LevelTrace
 	handlerOptions := &slog.HandlerOptions{
-		Level:     levels[strings.ToUpper(opts.LogLevel)],
-		AddSource: addSource,
+		Level:     opts.getLogLevel(),
+		AddSource: shouldAddSource,
 		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
 			if a.Key == slog.LevelKey {
 				level := a.Value.Any().(slog.Level)

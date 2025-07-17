@@ -473,7 +473,7 @@ func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
 	)
 
 	logger.Debug(
-		"Start getting key",
+		"Start getting key clicks",
 	)
 
 	key := r.PathValue("key")
