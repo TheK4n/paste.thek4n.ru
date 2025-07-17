@@ -166,7 +166,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 
 	if authorized {
 		logger.Info(
-			"Authorized apikey",
+			"Authorize apikey",
 			"apikey_id", apikeyID,
 		)
 	}
