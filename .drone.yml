@@ -12,11 +12,6 @@ steps:
         path: /root/.cache/go-build
       - name: go-mod-cache
         path: /go
-    when:
-      event:
-        include:
-        - push
-        - tag
 
   - name: check-fmt
     image: golang:1.23
@@ -28,11 +23,6 @@ steps:
         path: /root/.cache/go-build
       - name: go-mod-cache
         path: /go
-    when:
-      event:
-        include:
-        - push
-        - tag
 
   - name: lint
     image: golangci/golangci-lint:latest
@@ -43,11 +33,6 @@ steps:
         path: /root/.cache/go-build
       - name: go-mod-cache
         path: /go
-    when:
-      event:
-        include:
-        - push
-        - tag
 
   - name: wait-for-rabbitmq
     image: atkrad/wait4x
@@ -72,11 +57,6 @@ steps:
         path: /root/.cache/go-build
       - name: go-mod-cache
         path: /go
-    when:
-      event:
-        include:
-        - push
-        - tag
 
   - name: dockerize
     image: plugins/docker
@@ -101,26 +81,34 @@ steps:
       - name: docker-socket
         path: /var/run/docker.sock
     when:
-      event: tag
+      event:
+        - promote
+      target:
+        - production
+        - development
+      ref:
+        - refs/tags/*
 
   - name: deploy
-    image: alpine
-    environment:
-      SSH_KEY:
+    image: appleboy/drone-ssh
+    settings:
+      host:
+        - 192.168.50.5
+      username: thek4n
+      key:
         from_secret: ssh_key
-    commands:
-      - apk add --no-cache openssh
-      - mkdir -p ~/.ssh
-      - echo "$SSH_KEY" > ~/.ssh/id_rsa
-      - chmod 600 ~/.ssh/id_rsa
-      - |
-        ssh -o StrictHostKeyChecking=no thek4n@192.168.50.5 \
-        "cd ~/services/paste.thek4n.name &&
-          docker compose up -d"
-
-      - shred -zun 2 ~/.ssh/id_rsa
+      port: 22
+      script:
+        - |
+          cd "/home/thek4n/services/paste.thek4n.name" && \
+          IMAGE_TAG="${DRONE_TAG}" docker compose up -d
     when:
-      event: tag
+      event:
+        - promote
+      target:
+        - production
+      ref:
+        - refs/tags/*
     depends_on:
       - dockerize
 
