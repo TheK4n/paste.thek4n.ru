@@ -66,7 +66,7 @@ func runServer(opts *options) {
 	handler, err := newLoggerHandler(opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Cant get logger: %s", err)
-		return
+		os.Exit(1)
 	}
 
 	logger := slog.New(handler)
@@ -80,21 +80,21 @@ func runServer(opts *options) {
 	db, err := storage.InitKeysStorageDB(opts.DBHost, opts.DBPort)
 	if err != nil {
 		logger.Error("failed to connect to database", "error", err)
-		return
+		os.Exit(1)
 	}
 	logger.Info("Connected to database 0 (keys)")
 
 	apikeysDb, err := storage.InitAPIKeysStorageDB(opts.DBHost, opts.DBPort)
 	if err != nil {
 		logger.Error("failed to connect to database", "error", err)
-		return
+		os.Exit(1)
 	}
 	logger.Info("Connected to database 1 (apikeys)")
 
 	quotaDb, err := storage.InitQuotaStorageDB(opts.DBHost, opts.DBPort)
 	if err != nil {
 		logger.Error("failed to connect to database", "error", err)
-		return
+		os.Exit(1)
 	}
 	logger.Info("Connected to database 2 (quota)")
 
@@ -109,7 +109,7 @@ func runServer(opts *options) {
 	broker, err := apikeys.InitBroker(brokerConnectionURL)
 	if err != nil {
 		logger.Error("failed to connect to broker", "error", err)
-		return
+		os.Exit(1)
 	}
 	logger.Info("Connected to amqp broker")
 
