@@ -152,7 +152,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = app.QuotaDB.ReduceQuota(context.Background(), remoteAddr)
+		err = app.QuotaDB.ReduceQuota(context.Background(), remoteAddr, logger)
 		if err != nil {
 			logger.Error(
 				"Fail to reduce quota",

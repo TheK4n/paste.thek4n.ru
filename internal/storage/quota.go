@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -16,7 +17,10 @@ type QuotaDB struct {
 
 // ReduceQuota create specified key with expiration time
 // and decreases countdown field for key.
-func (db *QuotaDB) ReduceQuota(ctx context.Context, key string) error {
+func (db *QuotaDB) ReduceQuota(ctx context.Context, key string, logger *slog.Logger) error {
+	logger = logger.With(
+		"quota_for", key,
+	)
 	exists, err := db.exists(ctx, key)
 	if err != nil {
 		return err
@@ -33,12 +37,19 @@ func (db *QuotaDB) ReduceQuota(ctx context.Context, key string) error {
 		if err != nil {
 			return fmt.Errorf("fail to set new quota key: %w", err)
 		}
+		logger.Info("Set fresh quota")
 	}
 
-	err = db.Client.HIncrBy(ctx, key, "countdown", -1).Err()
+	res := db.Client.HIncrBy(ctx, key, "countdown", -1)
+	if res.Err() != nil {
+		return fmt.Errorf("fail to decrease quota: %w", res.Err())
+	}
+	quota, err := res.Uint64()
 	if err != nil {
 		return fmt.Errorf("fail to decrease quota: %w", err)
 	}
+
+	logger.Info("Reduced quota", "quota", quota)
 	return nil
 }
 

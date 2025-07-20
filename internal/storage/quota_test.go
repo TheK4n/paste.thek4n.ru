@@ -4,6 +4,7 @@ package storage
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"testing"
 
@@ -16,11 +17,12 @@ import (
 func TestReduceQuota(t *testing.T) {
 	db := setupTestRedis(t)
 	ctx := context.Background()
+	logger := slog.Default()
 
 	t.Run("create new record", func(t *testing.T) {
 		t.Parallel()
 		key := getKeyPrefix(t, "test_key")
-		err := db.ReduceQuota(ctx, key)
+		err := db.ReduceQuota(ctx, key, logger)
 		require.NoError(t, err)
 
 		val, err := db.Client.HGet(ctx, key, "countdown").Int()
@@ -35,7 +37,7 @@ func TestReduceQuota(t *testing.T) {
 	t.Run("decrement existing record", func(t *testing.T) {
 		t.Parallel()
 		key := getKeyPrefix(t, "test_key")
-		err := db.ReduceQuota(ctx, key)
+		err := db.ReduceQuota(ctx, key, logger)
 		require.NoError(t, err)
 
 		val, err := db.Client.HGet(ctx, key, "countdown").Int()
