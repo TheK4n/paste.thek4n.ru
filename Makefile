@@ -1,4 +1,4 @@
-APP_VERSION ?= not-set
+APP_VERSION ?= built-from-source
 OUTPUTDIR ?= bin/
 
 default: build
