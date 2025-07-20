@@ -3,7 +3,7 @@ type: docker
 name: docker-compose-deploy
 
 steps:
-  - name: test-build
+  - name: build
     image: golang:1.23
     commands:
       - make build
@@ -34,24 +34,31 @@ steps:
       - name: go-mod-cache
         path: /go
 
+  - name: wait-for-redis
+    image: atkrad/wait4x
+    commands:
+      - wait4x tcp redis:6379 -t 30s
+    depends_on:
+      - redis
+
   - name: wait-for-rabbitmq
     image: atkrad/wait4x
     commands:
-      - wait4x tcp rabbitmq-test:5672 -t 30s
+      - wait4x tcp rabbitmq:5672 -t 30s
     depends_on:
-      - rabbitmq-test
+      - rabbitmq
 
   - name: test
     image: golang:1.23
     environment:
-      REDIS_HOST: redis-test
-      BROKER_HOST: rabbitmq-test
+      REDIS_HOST: redis
+      BROKER_HOST: rabbitmq
     commands:
       - make test
     depends_on:
-      - test-build
-      - redis-test
+      - build
       - wait-for-rabbitmq
+      - wait-for-redis
     volumes:
       - name: go-build-cache
         path: /root/.cache/go-build
@@ -73,7 +80,7 @@ steps:
       build_args:
         - APP_VERSION=${DRONE_TAG}
     depends_on:
-      - test-build
+      - build
       - check-fmt
       - lint
       - test
@@ -113,19 +120,14 @@ steps:
       - dockerize
 
 services:
-  - name: redis-test
+  - name: redis
     image: redis:8
     ports:
       - 6379
-  - name: rabbitmq-test
+  - name: rabbitmq
     image: rabbitmq:3
     ports:
       - 5672
-    healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
-      interval: 5s
-      timeout: 10s
-      retries: 5
 
 volumes:
 - name: go-build-cache
