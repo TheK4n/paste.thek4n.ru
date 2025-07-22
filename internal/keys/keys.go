@@ -113,16 +113,12 @@ func generateUniqKey(
 	attemptsToIncreaseMinLength int,
 	charset string,
 ) (string, error) {
-	key, err := generateKey(minLength, charset)
-	if err != nil {
-		return "", fmt.Errorf("fail to generate key: %w", err)
-	}
-	exists, err := db.Exists(ctx, key)
-	if err != nil {
-		return "", fmt.Errorf("fail to check is key '%s' exists: %w", key, err)
-	}
+	var err error
+	var key string
 	currentAttemptsCountdown := attemptsToIncreaseMinLength
 
+	// initial true for start cycle
+	exists := true
 	for exists {
 		select {
 		case <-ctx.Done():
