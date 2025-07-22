@@ -81,7 +81,7 @@ func setupTestServer(t *testing.T) *testServer {
 		getBrokerHost_(),
 		5672,
 	)
-	broker, err := apikeys.InitBroker(brokerConnectionURL)
+	broker, err := apikeys.InitBroker(brokerConnectionURL, slog.Default())
 	require.NoError(t, err, "failed to connect to broker")
 
 	ctx := context.Background()

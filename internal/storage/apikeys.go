@@ -28,7 +28,7 @@ func (db *APIKeysDB) Set(ctx context.Context, key string) error {
 
 	err := db.Client.HSet(ctx, key, record).Err()
 	if err != nil {
-		return fmt.Errorf("fail to set record for key '%s': %w", key, err)
+		return fmt.Errorf("failure set record for key '%s': %w", key, err)
 	}
 
 	return nil
@@ -50,7 +50,7 @@ func (db *APIKeysDB) Get(ctx context.Context, key string) (APIKeyRecord, error) 
 
 	err = db.Client.HGetAll(ctx, key).Scan(&record)
 	if err != nil {
-		return record, fmt.Errorf("fail to get record for key '%s': %w", key, err)
+		return record, fmt.Errorf("failure get record for key '%s': %w", key, err)
 	}
 
 	return record, nil
@@ -59,7 +59,7 @@ func (db *APIKeysDB) Get(ctx context.Context, key string) (APIKeyRecord, error) 
 func (db *APIKeysDB) exists(ctx context.Context, key string) (bool, error) {
 	keysNumber, err := db.Client.Exists(ctx, key).Uint64()
 	if err != nil {
-		return false, fmt.Errorf("fait to check key existing: %w", err)
+		return false, fmt.Errorf("failure checking is key exists: %w", err)
 	}
 
 	return keysNumber > 0, nil
@@ -78,7 +78,7 @@ func InitAPIKeysStorageDB(dbHost string, dbPort int) (*APIKeysDB, error) {
 	})
 
 	if err := client.Ping(context.Background()).Err(); err != nil {
-		return nil, fmt.Errorf("fail to check connection: %w", err)
+		return nil, fmt.Errorf("failure checking connection: %w", err)
 	}
 
 	return &APIKeysDB{Client: client}, nil

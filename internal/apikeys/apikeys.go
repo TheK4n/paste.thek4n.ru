@@ -3,6 +3,7 @@ package apikeys
 
 import (
 	"fmt"
+	"log/slog"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"google.golang.org/protobuf/proto"
@@ -46,17 +47,22 @@ func (b *Broker) SendAPIKeyUsageLog(apikeyID string, reason apikeys.UsageReason,
 }
 
 // InitBroker creates connection to amqp broker.
-func InitBroker(connectURL string) (*Broker, error) {
+func InitBroker(connectURL string, logger *slog.Logger) (*Broker, error) {
+	logger.Debug("Creating amqp connection...")
 	rabbitmqcon, err := amqp.Dial(connectURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to rabbitmq: %w", err)
 	}
+	logger.Debug("Successfully created amqp connection")
 
+	logger.Debug("Creating amqp channel...")
 	ch, err := rabbitmqcon.Channel()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create a rabbitmq channel: %w", err)
 	}
+	logger.Debug("Successfully created amqp channel")
 
+	logger.Debug("Declaring amqp exchange...", "exchange_type", "topic", "exchange_name", config.APIKeyUsageExchange)
 	err = ch.ExchangeDeclare(
 		config.APIKeyUsageExchange,
 		"topic", // type
@@ -69,6 +75,7 @@ func InitBroker(connectURL string) (*Broker, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create a rabbitmq exchange '%s': %w", config.APIKeyUsageExchange, err)
 	}
+	logger.Debug("Successfully declared amqp exchange...")
 
 	return &Broker{
 		Channel: ch,

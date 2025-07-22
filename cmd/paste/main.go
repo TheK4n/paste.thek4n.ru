@@ -76,29 +76,33 @@ func runServer(opts *options) {
 		opts.DBHost = redisHost
 	}
 
-	logger.Info("Connecting to database 0 (keys)...")
+	loggerdb := logger.With("dbhost", opts.DBHost, "dbport", opts.DBPort)
+	loggerdb0 := loggerdb.With("db", "0", "dbname", "keys")
+	loggerdb0.Debug("Connecting to database...")
 	db, err := storage.InitKeysStorageDB(opts.DBHost, opts.DBPort)
 	if err != nil {
-		logger.Error("failed to connect to database", "error", err)
+		loggerdb0.Error("failed to connect to database", "error", err)
 		os.Exit(1)
 	}
-	logger.Info("Connected to database 0 (keys)")
+	loggerdb0.Debug("Successfully connected to database")
 
-	logger.Info("Connecting to database 1 (apikeys)...")
+	loggerdb1 := loggerdb.With("db", "1", "dbname", "apikeys")
+	loggerdb1.Debug("Connecting to database...")
 	apikeysDb, err := storage.InitAPIKeysStorageDB(opts.DBHost, opts.DBPort)
 	if err != nil {
-		logger.Error("failed to connect to database", "error", err)
+		loggerdb1.Error("Failed to connect to database", "error", err)
 		os.Exit(1)
 	}
-	logger.Info("Connected to database 1 (apikeys)")
+	loggerdb1.Debug("Successfully connected to database")
 
-	logger.Info("Connecting to database 2 (quota)...")
+	loggerdb2 := loggerdb.With("db", "2", "dbname", "quota")
+	loggerdb2.Debug("Connecting to database...")
 	quotaDb, err := storage.InitQuotaStorageDB(opts.DBHost, opts.DBPort)
 	if err != nil {
-		logger.Error("failed to connect to database", "error", err)
+		loggerdb2.Error("Failed to connect to database", "error", err)
 		os.Exit(1)
 	}
-	logger.Info("Connected to database 2 (quota)")
+	loggerdb2.Debug("Successfully connected to database")
 
 	brokerConnectionURL := fmt.Sprintf(
 		"amqp://%s:%s@%s:%d/",
@@ -108,13 +112,14 @@ func runServer(opts *options) {
 		opts.BrokerPort,
 	)
 
-	logger.Info("Connecting to amqp broker...")
-	broker, err := apikeys.InitBroker(brokerConnectionURL)
+	loggerb := logger.With("broker_host", getBrokerHost(opts), "broker_port", opts.BrokerPort, "broker_user", opts.BrokerUser)
+	loggerb.Debug("Initializing amqp broker channel...")
+	broker, err := apikeys.InitBroker(brokerConnectionURL, loggerb)
 	if err != nil {
-		logger.Error("failed to connect to broker", "error", err)
+		loggerb.Error("Failed to initialize amqp broker channel", "error", err)
 		os.Exit(1)
 	}
-	logger.Info("Connected to amqp broker")
+	loggerb.Debug("Successfully initialized amqp broker channel")
 
 	handlers := handlers.Application{
 		Version:   version,
