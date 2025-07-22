@@ -30,9 +30,9 @@ func (b *Broker) SendAPIKeyUsageLog(apikeyID string, reason apikeys.UsageReason,
 
 	err = b.Channel.Publish(
 		config.APIKeyUsageExchange,
-		"",    // routing key
-		false, // mandatory
-		false, // immediate
+		"apikeysusage.msg", // routing key
+		false,              // mandatory
+		false,              // immediate
 		amqp.Publishing{
 			ContentType: "application/protobuf",
 			Body:        data,
@@ -59,12 +59,12 @@ func InitBroker(connectURL string) (*Broker, error) {
 
 	err = ch.ExchangeDeclare(
 		config.APIKeyUsageExchange,
-		"direct", // type
-		true,     // durable
-		false,    // auto-deleted
-		false,    // internal
-		false,    // no-wait
-		nil,      // arguments
+		"topic", // type
+		true,    // durable
+		false,   // auto-deleted
+		false,   // internal
+		false,   // no-wait
+		nil,     // arguments
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create a rabbitmq exchange '%s': %w", config.APIKeyUsageExchange, err)

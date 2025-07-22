@@ -70,13 +70,13 @@ func runServer(opts *options) {
 	}
 
 	logger := slog.New(handler)
-	logger.Info("Connecting to database...")
 
 	redisHost := os.Getenv("REDIS_HOST")
 	if redisHost != "" {
 		opts.DBHost = redisHost
 	}
 
+	logger.Info("Connecting to database 0 (keys)...")
 	db, err := storage.InitKeysStorageDB(opts.DBHost, opts.DBPort)
 	if err != nil {
 		logger.Error("failed to connect to database", "error", err)
@@ -84,6 +84,7 @@ func runServer(opts *options) {
 	}
 	logger.Info("Connected to database 0 (keys)")
 
+	logger.Info("Connecting to database 1 (apikeys)...")
 	apikeysDb, err := storage.InitAPIKeysStorageDB(opts.DBHost, opts.DBPort)
 	if err != nil {
 		logger.Error("failed to connect to database", "error", err)
@@ -91,6 +92,7 @@ func runServer(opts *options) {
 	}
 	logger.Info("Connected to database 1 (apikeys)")
 
+	logger.Info("Connecting to database 2 (quota)...")
 	quotaDb, err := storage.InitQuotaStorageDB(opts.DBHost, opts.DBPort)
 	if err != nil {
 		logger.Error("failed to connect to database", "error", err)
@@ -106,6 +108,7 @@ func runServer(opts *options) {
 		opts.BrokerPort,
 	)
 
+	logger.Info("Connecting to amqp broker...")
 	broker, err := apikeys.InitBroker(brokerConnectionURL)
 	if err != nil {
 		logger.Error("failed to connect to broker", "error", err)
