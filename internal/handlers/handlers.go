@@ -50,54 +50,55 @@ type healthcheckResponse struct {
 // Healthcheck checks database availability and returns version.
 func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := getClientIP(r)
-	availability := true
-	msg := "ok"
+	resp := &healthcheckResponse{
+		Version:      app.Version,
+		Availability: true,
+		Msg:          "ok",
+	}
+	statusCode := http.StatusOK
 
 	ctx, cancel := context.WithTimeout(context.Background(), config.HealthcheckTimeout)
 	defer cancel()
-
-	if !app.DB.Ping(ctx) {
-		availability = false
-		msg = "Error connection to database"
+	if !app.checkIsDatabaseAvailable(ctx) {
+		resp.Availability = false
+		resp.Msg = "Error connection to database"
+		statusCode = http.StatusServiceUnavailable
 	}
 
-	resp := &healthcheckResponse{
-		Version:      app.Version,
-		Availability: availability,
-		Msg:          msg,
-	}
-
-	answer, err := json.Marshal(resp)
-	if err != nil {
+	if err := sendJSONResponse(w, resp, statusCode); err != nil {
 		app.Logger.Error(
 			"Error on answer healthcheck",
 			"error", err,
 			"source_ip", remoteAddr,
-			"answer_code", http.StatusInternalServerError,
+			"answer_code", statusCode,
 		)
-		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+}
 
-	w.WriteHeader(http.StatusOK)
+func (app *Application) checkIsDatabaseAvailable(ctx context.Context) bool {
+	return app.DB.Ping(ctx)
+}
+
+func sendJSONResponse(
+	w http.ResponseWriter,
+	data any,
+	statusCode int,
+) error {
 	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write(answer)
-	if err != nil {
-		app.Logger.Error(
-			"Error on answer healthcheck",
-			"error", err,
-			"source_ip", remoteAddr,
-			"answer_code", http.StatusInternalServerError,
-		)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+	w.WriteHeader(statusCode)
+
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		return fmt.Errorf("failed to encode response: %w", err)
 	}
+	return nil
 }
 
 // Cache handle request to set key.
 func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := getClientIP(r)
 	requestUUID := uuid.NewString()
+	urlValues := r.URL.Query()
 
 	logger := app.Logger.With(
 		"source_ip", remoteAddr,
@@ -171,7 +172,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	ttl, errGetTTL := getTTL(r)
+	ttl, errGetTTL := getTTL(urlValues)
 	if errGetTTL != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		_, _ = fmt.Fprint(w, "Invalid 'ttl' parameter")
@@ -196,7 +197,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	length, errGetLength := getLength(r)
+	length, errGetLength := getLength(urlValues)
 	if errGetLength != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		_, _ = fmt.Fprint(w, "Invalid 'len' parameter")
@@ -222,21 +223,21 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	disposable, errGetDisposable := getDisposable(r)
+	disposable, errGetDisposable := getDisposable(urlValues)
 	if errGetDisposable != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		_, _ = fmt.Fprint(w, "Invalid 'disposable' parameter")
 		return
 	}
 
-	isURL, errGetURL := getURL(r)
+	isURL, errGetURL := getURL(urlValues)
 	if errGetURL != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		_, _ = fmt.Fprint(w, "Invalid 'url' parameter")
 		return
 	}
 
-	requestedKey, errGetRequestedKey := getRequestedKey(r)
+	requestedKey, errGetRequestedKey := getRequestedKey(urlValues)
 	if errGetRequestedKey != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		_, _ = fmt.Fprint(w, errGetRequestedKey.Error())
@@ -527,8 +528,8 @@ func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
-func getTTL(r *http.Request) (time.Duration, error) {
-	ttlQuery := r.URL.Query().Get("ttl")
+func getTTL(v url.Values) (time.Duration, error) {
+	ttlQuery := v.Get("ttl")
 
 	if ttlQuery == "" {
 		return config.DefaultTTL, nil
@@ -550,8 +551,8 @@ func getTTL(r *http.Request) (time.Duration, error) {
 	return ttl, nil
 }
 
-func getRequestedKey(r *http.Request) (string, error) {
-	requestedKey := r.URL.Query().Get("key")
+func getRequestedKey(v url.Values) (string, error) {
+	requestedKey := v.Get("key")
 
 	if requestedKey == "" {
 		return "", nil
@@ -574,8 +575,8 @@ func getRequestedKey(r *http.Request) (string, error) {
 	return requestedKey, nil
 }
 
-func getDisposable(r *http.Request) (int, error) {
-	disposableQuery := r.URL.Query().Get("disposable")
+func getDisposable(v url.Values) (int, error) {
+	disposableQuery := v.Get("disposable")
 
 	if disposableQuery == "" {
 		return 0, nil
@@ -597,8 +598,8 @@ func getDisposable(r *http.Request) (int, error) {
 	return disposable, nil
 }
 
-func getLength(r *http.Request) (int, error) {
-	lengthQuery := r.URL.Query().Get("len")
+func getLength(v url.Values) (int, error) {
+	lengthQuery := v.Get("len")
 
 	if lengthQuery == "" {
 		return config.DefaultKeyLength, nil
@@ -620,8 +621,8 @@ func getLength(r *http.Request) (int, error) {
 	return length, nil
 }
 
-func getURL(r *http.Request) (bool, error) {
-	URLQuery := r.URL.Query().Get("url")
+func getURL(v url.Values) (bool, error) {
+	URLQuery := v.Get("url")
 
 	if URLQuery == "" {
 		return false, nil

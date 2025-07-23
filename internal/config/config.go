@@ -8,9 +8,9 @@ import (
 
 // Body size.
 const (
-	oneMebibyte             = 1048576
-	UnprevelegedMaxBodySize = oneMebibyte
-	PrevelegedMaxBodySize   = 100 * oneMebibyte
+	oneMebibyte             int64 = 1048576
+	UnprevelegedMaxBodySize int64 = oneMebibyte
+	PrevelegedMaxBodySize   int64 = 100 * oneMebibyte
 )
 
 // TTL.
