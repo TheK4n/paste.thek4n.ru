@@ -94,49 +94,59 @@ func sendJSONResponse(
 	return nil
 }
 
+type cacheRequest struct {
+	Authorized bool
+}
+
+func sendTextResponse(w http.ResponseWriter, message string, statusCode int) error {
+	w.WriteHeader(statusCode)
+	_, err := fmt.Fprintf(w, "%s", message)
+	return fmt.Errorf("fail to response: %w", err)
+}
+
 // Cache handle request to set key.
 func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := getClientIP(r)
 	requestUUID := uuid.NewString()
 	urlValues := r.URL.Query()
+	req := cacheRequest{}
+	req.Authorized = false
 
 	logger := app.Logger.With(
 		"source_ip", remoteAddr,
 		"request_id", requestUUID,
 	)
+	logger.Debug("Start caching key")
 
-	logger.Debug(
-		"Start caching key",
-	)
-
-	authorized := false
-	apikey := r.URL.Query().Get("apikey")
+	apikey := urlValues.Get("apikey")
 	if apikey != "" {
 		var err error
-		authorized, err = app.validateApikey(apikey)
+		req.Authorized, err = app.validateApikey(apikey)
 		if err != nil {
-			logger.Warn(
-				"Fail to check apikey",
+			logger.Warn("Fail to check apikey",
 				"error", err,
 				"answer_code", http.StatusInternalServerError,
 			)
-			w.WriteHeader(http.StatusInternalServerError)
+			if err := sendTextResponse(w, "", http.StatusInternalServerError); err != nil {
+				logger.Error("Fail to answer on cache request",
+					"error", err,
+					"answer_code", http.StatusInternalServerError,
+				)
+			}
 			return
 		}
 	}
 
 	apikeyID := ""
 	var getAPIKeyIDErr error
-	if authorized {
+	if req.Authorized {
 		apikeyID, getAPIKeyIDErr = app.getAPIKeyID(apikey)
 		if getAPIKeyIDErr != nil {
-			logger.Warn(
-				"fail to fetch apikey id",
-			)
+			logger.Warn("fail to fetch apikey id")
 		}
 	}
 
-	if !authorized {
+	if !req.Authorized {
 		quotaValid, err := app.QuotaDB.IsQuotaValid(context.Background(), remoteAddr)
 		if err != nil {
 			logger.Error(
@@ -165,7 +175,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if authorized {
+	if req.Authorized {
 		logger.Info(
 			"Authorize apikey",
 			"apikey_id", apikeyID,
@@ -180,7 +190,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if ttl == time.Duration(0) {
-		if !authorized {
+		if !req.Authorized {
 			logger.Warn(
 				"Unathorized attempt to set persist key",
 				"answer_code", http.StatusUnauthorized,
@@ -205,7 +215,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if length < config.UnprivelegedMinKeyLength {
-		if !authorized {
+		if !req.Authorized {
 			logger.Warn(
 				"Unathorized attempt to set short key",
 				"requested_key_length", length,
@@ -244,7 +254,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !authorized {
+	if !req.Authorized {
 		if requestedKey != "" {
 			logger.Warn(
 				"Unathorized attempt to set custom key",
@@ -256,7 +266,7 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if authorized {
+	if req.Authorized {
 		if requestedKey != "" {
 			err := app.Broker.SendAPIKeyUsageLog(apikeyID, apikeysm.UsageReason_CUSTOMKEY, remoteAddr)
 			if err != nil {
@@ -268,14 +278,14 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if !authorized {
+	if !req.Authorized {
 		if r.ContentLength > config.UnprevelegedMaxBodySize {
 			w.WriteHeader(http.StatusRequestEntityTooLarge)
 			_, _ = fmt.Fprintf(w, "Body too large. Maximum is %d bytes", config.UnprevelegedMaxBodySize)
 			return
 		}
 	}
-	if authorized {
+	if req.Authorized {
 		if r.ContentLength > config.UnprevelegedMaxBodySize {
 			err := app.Broker.SendAPIKeyUsageLog(apikeyID, apikeysm.UsageReason_LARGEBODY, remoteAddr)
 			if err != nil {
