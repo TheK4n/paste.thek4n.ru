@@ -168,7 +168,7 @@ func (app *Application) processCacheRequest(r *http.Request, logger *slog.Logger
 	if req.APIKey != "" {
 		authorized, err := app.validateApikey(req.APIKey)
 		if err != nil {
-			logger.Error("fail to check apikey", "error", err, "answer_code", http.StatusInternalServerError)
+			logger.Error("Fail to check apikey", "error", err, "answer_code", http.StatusInternalServerError)
 			return nil, &cacheError{Message: "Failed to check apikey", StatusCode: http.StatusInternalServerError, Err: err}
 		}
 		req.Authorized = authorized
@@ -176,7 +176,7 @@ func (app *Application) processCacheRequest(r *http.Request, logger *slog.Logger
 		if authorized {
 			apiKeyID, err := app.getAPIKeyID(req.APIKey)
 			if err != nil {
-				logger.Warn("fail to fetch apikey id")
+				logger.Warn("Fail to fetch apikey id")
 			}
 			req.APIKeyID = apiKeyID
 		}
@@ -440,16 +440,15 @@ func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 		"key", key,
 	)
 
-	record, getKeyErr := keys.Get(app.DB, key, 4*time.Second)
-
-	if getKeyErr != nil {
-		if getKeyErr == storage.ErrKeyNotFound || errors.Unwrap(getKeyErr) == storage.ErrKeyNotFound {
+	record, err := keys.Get(app.DB, key, 4*time.Second)
+	if err != nil {
+		if errors.Is(err, storage.ErrKeyNotFound) {
 			w.WriteHeader(http.StatusNotFound)
 
 			_, writeErr := w.Write([]byte("404 Not Found"))
 			if writeErr != nil {
 				logger.Error(
-					"Fail to answer",
+					"Fail to answer on getting key",
 					"error", writeErr,
 					"answer_code", http.StatusInternalServerError,
 				)
@@ -460,7 +459,7 @@ func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 		}
 		logger.Error(
 			"Fail to get key",
-			"error", getKeyErr,
+			"error", err,
 			"answer_code", http.StatusInternalServerError,
 		)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -483,7 +482,7 @@ func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		logger.Info(
-			"Redirect url",
+			"Redirect to url",
 		)
 		return
 	}
@@ -501,7 +500,7 @@ func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logger.Info(
-		"Get content",
+		"Got content",
 	)
 }
 
@@ -527,7 +526,7 @@ func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
 
 	clicks, err := keys.GetClicks(app.DB, key, 4*time.Second)
 	if err != nil {
-		if err == storage.ErrKeyNotFound || errors.Unwrap(err) == storage.ErrKeyNotFound {
+		if errors.Is(err, storage.ErrKeyNotFound) {
 			w.WriteHeader(http.StatusNotFound)
 
 			_, writeErr := fmt.Fprint(w, "404 Not Found")
@@ -566,7 +565,7 @@ func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logger.Info(
-		"Get clicks",
+		"Got clicks",
 	)
 }
 
