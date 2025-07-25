@@ -394,16 +394,20 @@ func handleCacheError(w http.ResponseWriter, err error, logger *slog.Logger) {
 			StatusCode: http.StatusInternalServerError,
 			Err:        err,
 		}
+		logger.Error(cacheErr.Message,
+			"error", cacheErr.Err,
+			"answer_code", http.StatusInternalServerError,
+		)
 	}
-
-	logger.Error(cacheErr.Message,
-		"error", cacheErr.Err,
-		"answer_code", cacheErr.StatusCode,
-	)
 
 	w.WriteHeader(cacheErr.StatusCode)
 	if cacheErr.Message != "" {
-		_, _ = fmt.Fprint(w, cacheErr.Message)
+		if _, err := fmt.Fprint(w, cacheErr.Message); err != nil {
+			logger.Error("Error on answer error",
+				"error", cacheErr.Err,
+				"answer_code", http.StatusInternalServerError,
+			)
+		}
 	}
 }
 
