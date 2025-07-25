@@ -25,7 +25,7 @@ steps:
         path: /go
 
   - name: lint
-    image: golangci/golangci-lint:latest
+    image: golangci/golangci-lint:v2.2
     commands:
       - make lint
     volumes:
