@@ -13,13 +13,19 @@ repos:
       - id: check-shebang-scripts-are-executable
       - id: check-executables-have-shebangs
 
-  - repo: https://github.com/golangci/golangci-lint
-    rev: v2.1.6
+  - repo: local
     hooks:
-      - id: golangci-lint-full
-        entry: env GOFLAGS="-tags=integration,e2e" golangci-lint run --new-from-rev HEAD --fix --timeout=5m
+      - id: golangci-lint
+        name: golangci-lint linter
+        language: system
+        entry: env GOFLAGS="-tags=integration,e2e" go tool golangci-lint run --new-from-rev HEAD --fix --timeout=5m
+        pass_filenames: false
+
       - id: golangci-lint-fmt
-        entry: env GOFLAGS="-tags=integration,e2e" golangci-lint fmt
+        name: golangci-lint formatter
+        language: system
+        entry: env GOFLAGS="-tags=integration,e2e" go tool golangci-lint fmt
+        pass_filenames: false
 
   - repo: https://github.com/jorisroovers/gitlint
     rev: v0.19.1

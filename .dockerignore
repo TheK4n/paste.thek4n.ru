@@ -2,9 +2,11 @@
 .gitignore
 .dockerignore
 Dockerfile
-bin
+bin/
 README.md
 docker-compose.yaml
-docker-compose.prod.yaml
 .drone.yml
 .pre-commit-config.yaml
+.golangci.yml
+tools/
+CONTRIBUTING.md

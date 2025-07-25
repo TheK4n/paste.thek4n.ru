@@ -58,12 +58,12 @@ test:
 .PHONY: lint
 lint:
 	GOFLAGS="-tags=integration,e2e" \
-	golangci-lint run --fix --timeout=5m
+	go tool golangci-lint run --fix --new-from-rev HEAD --timeout=5m
 
-.PHONY: lint-short
-lint-short:
+.PHONY: lint-drone
+lint-drone:
 	GOFLAGS="-tags=integration,e2e" \
-	golangci-lint run --fix --new-from-rev HEAD --timeout=5m
+	golangci-lint run --fix --timeout=5m
 
 
 .PHONY: fmt

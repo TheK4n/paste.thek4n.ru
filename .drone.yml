@@ -4,7 +4,7 @@ name: docker-compose-deploy
 
 steps:
   - name: build
-    image: golang:1.23
+    image: golang:1.24
     commands:
       - make build
     volumes:
@@ -14,7 +14,7 @@ steps:
         path: /go
 
   - name: check-fmt
-    image: golang:1.23
+    image: golang:1.24
     commands:
       - make fmt
       - git diff --exit-code
@@ -25,9 +25,9 @@ steps:
         path: /go
 
   - name: lint
-    image: golangci/golangci-lint:v2.2
+    image: golangci/golangci-lint:v2.3.0
     commands:
-      - make lint
+      - make lint-drone
     volumes:
       - name: go-build-cache
         path: /root/.cache/go-build
@@ -49,7 +49,7 @@ steps:
       - rabbitmq
 
   - name: test
-    image: golang:1.23
+    image: golang:1.24
     environment:
       REDIS_HOST: redis
       BROKER_HOST: rabbitmq
