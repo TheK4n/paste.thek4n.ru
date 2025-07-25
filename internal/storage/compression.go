@@ -43,7 +43,7 @@ func decompress(data []byte) ([]byte, error) {
 	defer bufferPool.Put(buf)
 	buf.Reset()
 	buf.Grow(len(data) * 2)
-	decompressedBodyLimit := int64(config.PrevelegedMaxBodySize)
+	decompressedBodyLimit := config.PrevelegedMaxBodySize
 
 	_, err = io.CopyN(buf, gz, decompressedBodyLimit)
 	if !errors.Is(err, io.EOF) && err != nil {

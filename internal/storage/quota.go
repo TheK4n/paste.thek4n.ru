@@ -37,7 +37,7 @@ func (db *QuotaDB) ReduceQuota(ctx context.Context, key string, logger *slog.Log
 		if err != nil {
 			return fmt.Errorf("fail to set new quota key: %w", err)
 		}
-		logger.Info("Set fresh quota")
+		logger.Debug("Set fresh quota")
 	}
 
 	res := db.Client.HIncrBy(ctx, key, "countdown", -1)
@@ -49,7 +49,7 @@ func (db *QuotaDB) ReduceQuota(ctx context.Context, key string, logger *slog.Log
 		return fmt.Errorf("fail to decrease quota: %w", err)
 	}
 
-	logger.Info("Reduced quota", "quota", quota)
+	logger.Debug("Reduced quota", "quota", quota)
 	return nil
 }
 

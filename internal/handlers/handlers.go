@@ -95,297 +95,329 @@ func sendJSONResponse(
 }
 
 type cacheRequest struct {
-	Authorized bool
+	APIKey       string
+	TTL          time.Duration
+	Length       int
+	Disposable   int
+	IsURL        bool
+	RequestedKey string
+	Body         []byte
+	Authorized   bool
+	APIKeyID     string
 }
 
-func sendTextResponse(w http.ResponseWriter, message string, statusCode int) error {
-	w.WriteHeader(statusCode)
-	_, err := fmt.Fprintf(w, "%s", message)
-	return fmt.Errorf("fail to response: %w", err)
-}
-
-// Cache handle request to set key.
+// Cache handle to save key in db.
 func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := getClientIP(r)
 	requestUUID := uuid.NewString()
-	urlValues := r.URL.Query()
-	req := cacheRequest{}
-	req.Authorized = false
-
-	logger := app.Logger.With(
-		"source_ip", remoteAddr,
-		"request_id", requestUUID,
-	)
+	logger := app.Logger.With("source_ip", remoteAddr, "request_id", requestUUID)
 	logger.Debug("Start caching key")
 
-	apikey := urlValues.Get("apikey")
-	if apikey != "" {
-		var err error
-		req.Authorized, err = app.validateApikey(apikey)
-		if err != nil {
-			logger.Warn("Fail to check apikey",
-				"error", err,
-				"answer_code", http.StatusInternalServerError,
-			)
-			if err := sendTextResponse(w, "", http.StatusInternalServerError); err != nil {
-				logger.Error("Fail to answer on cache request",
-					"error", err,
-					"answer_code", http.StatusInternalServerError,
-				)
-			}
-			return
-		}
-	}
-
-	apikeyID := ""
-	var getAPIKeyIDErr error
-	if req.Authorized {
-		apikeyID, getAPIKeyIDErr = app.getAPIKeyID(apikey)
-		if getAPIKeyIDErr != nil {
-			logger.Warn("fail to fetch apikey id")
-		}
-	}
-
-	if !req.Authorized {
-		quotaValid, err := app.QuotaDB.IsQuotaValid(context.Background(), remoteAddr)
-		if err != nil {
-			logger.Error(
-				"Fail to check quota",
-				"error", err,
-				"answer_code", http.StatusInternalServerError,
-			)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		if !quotaValid {
-			w.WriteHeader(http.StatusUnauthorized)
-			_, _ = fmt.Fprint(w, "Your quota for today is exhausted.")
-			return
-		}
-
-		err = app.QuotaDB.ReduceQuota(context.Background(), remoteAddr, logger)
-		if err != nil {
-			logger.Error(
-				"Fail to reduce quota",
-				"error", err,
-				"answer_code", http.StatusInternalServerError,
-			)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-	}
-
-	if req.Authorized {
-		logger.Info(
-			"Authorize apikey",
-			"apikey_id", apikeyID,
-		)
-	}
-
-	ttl, errGetTTL := getTTL(urlValues)
-	if errGetTTL != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = fmt.Fprint(w, "Invalid 'ttl' parameter")
+	cacheReq, err := app.processCacheRequest(r, logger)
+	if err != nil {
+		handleCacheError(w, err, logger)
 		return
 	}
 
-	if ttl == time.Duration(0) {
-		if !req.Authorized {
-			logger.Warn(
-				"Unathorized attempt to set persist key",
-				"answer_code", http.StatusUnauthorized,
-			)
-			w.WriteHeader(http.StatusUnauthorized)
+	if cacheReq.Authorized {
+		logger = logger.With("authorized", true)
+		logger.Debug("Authorize apikey", "apikey_id", cacheReq.APIKeyID)
+	}
+
+	if !cacheReq.Authorized {
+		if err := app.checkQuota(remoteAddr, logger); err != nil {
+			handleCacheError(w, err, logger)
 			return
 		}
-		err := app.Broker.SendAPIKeyUsageLog(apikeyID, apikeysm.UsageReason_PERSISTKEY, remoteAddr)
+	}
+
+	if err := app.validateCacheRequest(cacheReq); err != nil {
+		handleCacheError(w, err, logger)
+		return
+	}
+
+	if cacheReq.Authorized {
+		app.logAPIKeyUsage(cacheReq.APIKeyID, remoteAddr, cacheReq, logger)
+	}
+
+	key, err := app.saveKey(cacheReq)
+	if err != nil {
+		handleCacheError(w, err, logger)
+		return
+	}
+
+	if err := sendSuccessResponse(w, r, key); err != nil {
+		handleCacheError(w, err, logger)
+		return
+	}
+
+	logger.Info("Set key",
+		"key", key,
+		"body_size", len(cacheReq.Body),
+		"ttl", cacheReq.TTL,
+		"disposable", cacheReq.Disposable,
+		"isURL", cacheReq.IsURL,
+	)
+}
+
+func (app *Application) processCacheRequest(r *http.Request, logger *slog.Logger) (*cacheRequest, error) {
+	urlQuery := r.URL.Query()
+	req := &cacheRequest{}
+
+	req.APIKey = urlQuery.Get("apikey")
+	if req.APIKey != "" {
+		authorized, err := app.validateApikey(req.APIKey)
 		if err != nil {
-			logger.Warn(
-				"fail to publish to broker",
-				"error", err,
-			)
+			logger.Error("fail to check apikey", "error", err, "answer_code", http.StatusInternalServerError)
+			return nil, &cacheError{Message: "Failed to check apikey", StatusCode: http.StatusInternalServerError, Err: err}
 		}
-	}
+		req.Authorized = authorized
 
-	length, errGetLength := getLength(urlValues)
-	if errGetLength != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = fmt.Fprint(w, "Invalid 'len' parameter")
-		return
-	}
-
-	if length < config.UnprivelegedMinKeyLength {
-		if !req.Authorized {
-			logger.Warn(
-				"Unathorized attempt to set short key",
-				"requested_key_length", length,
-				"answer_code", http.StatusUnauthorized,
-			)
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		err := app.Broker.SendAPIKeyUsageLog(apikeyID, apikeysm.UsageReason_CUSTOMKEYLEN, remoteAddr)
-		if err != nil {
-			logger.Warn(
-				"fail to publish to broker",
-				"error", err,
-			)
-		}
-	}
-
-	disposable, errGetDisposable := getDisposable(urlValues)
-	if errGetDisposable != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = fmt.Fprint(w, "Invalid 'disposable' parameter")
-		return
-	}
-
-	isURL, errGetURL := getURL(urlValues)
-	if errGetURL != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = fmt.Fprint(w, "Invalid 'url' parameter")
-		return
-	}
-
-	requestedKey, errGetRequestedKey := getRequestedKey(urlValues)
-	if errGetRequestedKey != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_, _ = fmt.Fprint(w, errGetRequestedKey.Error())
-		return
-	}
-
-	if !req.Authorized {
-		if requestedKey != "" {
-			logger.Warn(
-				"Unathorized attempt to set custom key",
-				"requested_key", requestedKey,
-				"answer_code", http.StatusUnauthorized,
-			)
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-	}
-
-	if req.Authorized {
-		if requestedKey != "" {
-			err := app.Broker.SendAPIKeyUsageLog(apikeyID, apikeysm.UsageReason_CUSTOMKEY, remoteAddr)
+		if authorized {
+			apiKeyID, err := app.getAPIKeyID(req.APIKey)
 			if err != nil {
-				logger.Warn(
-					"fail to publish to broker",
-					"error", err,
-				)
+				logger.Warn("fail to fetch apikey id")
 			}
+			req.APIKeyID = apiKeyID
 		}
 	}
 
-	if !req.Authorized {
-		if r.ContentLength > config.UnprevelegedMaxBodySize {
-			w.WriteHeader(http.StatusRequestEntityTooLarge)
-			_, _ = fmt.Fprintf(w, "Body too large. Maximum is %d bytes", config.UnprevelegedMaxBodySize)
-			return
-		}
+	if err := readRequestBody(r, req); err != nil {
+		return nil, err
 	}
+
+	if err := app.parseRequestParams(urlQuery, req); err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+func readRequestBody(r *http.Request, req *cacheRequest) error {
+	maxBodySize := config.UnprevelegedMaxBodySize
 	if req.Authorized {
-		if r.ContentLength > config.UnprevelegedMaxBodySize {
-			err := app.Broker.SendAPIKeyUsageLog(apikeyID, apikeysm.UsageReason_LARGEBODY, remoteAddr)
-			if err != nil {
-				logger.Warn(
-					"fail to publish to broker",
-					"error", err,
-				)
+		maxBodySize = config.PrevelegedMaxBodySize
+	}
+
+	if r.ContentLength > maxBodySize {
+		return &cacheError{
+			Message:    fmt.Sprintf("Body too large. Maximum is %d bytes", maxBodySize),
+			StatusCode: http.StatusRequestEntityTooLarge,
+		}
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil && err != io.EOF {
+		return &cacheError{
+			Message:    "Failed to read body",
+			StatusCode: http.StatusInternalServerError,
+			Err:        err,
+		}
+	}
+	req.Body = body
+
+	return nil
+}
+
+func (app *Application) parseRequestParams(urlQuery url.Values, req *cacheRequest) error {
+	var err error
+
+	req.TTL, err = getTTL(urlQuery)
+	if err != nil {
+		return &cacheError{Message: "Invalid 'ttl' parameter", StatusCode: http.StatusUnprocessableEntity}
+	}
+
+	req.Length, err = getLength(urlQuery)
+	if err != nil {
+		return &cacheError{Message: "Invalid 'len' parameter", StatusCode: http.StatusUnprocessableEntity}
+	}
+
+	req.Disposable, err = getDisposable(urlQuery)
+	if err != nil {
+		return &cacheError{Message: "Invalid 'disposable' parameter", StatusCode: http.StatusUnprocessableEntity}
+	}
+
+	req.IsURL, err = getURL(urlQuery)
+	if err != nil {
+		return &cacheError{Message: "Invalid 'url' parameter", StatusCode: http.StatusUnprocessableEntity}
+	}
+
+	req.RequestedKey, err = getRequestedKey(urlQuery)
+	if err != nil {
+		return &cacheError{Message: err.Error(), StatusCode: http.StatusUnprocessableEntity}
+	}
+
+	return nil
+}
+
+func (app *Application) checkQuota(remoteAddr string, logger *slog.Logger) error {
+	quotaValid, err := app.QuotaDB.IsQuotaValid(context.Background(), remoteAddr)
+	if err != nil {
+		return &cacheError{
+			Message:    "Failed to check quota",
+			StatusCode: http.StatusInternalServerError,
+			Err:        err,
+		}
+	}
+	if !quotaValid {
+		return &cacheError{
+			Message:    "Your quota for today is exhausted",
+			StatusCode: http.StatusUnauthorized,
+		}
+	}
+
+	if err := app.QuotaDB.ReduceQuota(context.Background(), remoteAddr, logger); err != nil {
+		return &cacheError{
+			Message:    "Failed to reduce quota",
+			StatusCode: http.StatusInternalServerError,
+			Err:        err,
+		}
+	}
+
+	return nil
+}
+
+func (app *Application) validateCacheRequest(req *cacheRequest) error {
+	if req.TTL == 0 && !req.Authorized {
+		return &cacheError{
+			Message:    "Unauthorized attempt to set persist key",
+			StatusCode: http.StatusUnauthorized,
+		}
+	}
+
+	if req.Length < config.UnprivelegedMinKeyLength && !req.Authorized {
+		return &cacheError{
+			Message:    "Unauthorized attempt to set short key",
+			StatusCode: http.StatusUnauthorized,
+		}
+	}
+
+	if req.RequestedKey != "" && !req.Authorized {
+		return &cacheError{
+			Message:    "Unauthorized attempt to set custom key",
+			StatusCode: http.StatusUnauthorized,
+		}
+	}
+
+	if req.IsURL {
+		req.Body = []byte(strings.TrimSpace(string(req.Body)))
+		if !validateURL(string(req.Body)) {
+			return &cacheError{
+				Message:    "Invalid 'url' parameter",
+				StatusCode: http.StatusUnprocessableEntity,
 			}
 		}
 	}
 
-	if r.ContentLength > config.PrevelegedMaxBodySize {
-		w.WriteHeader(http.StatusRequestEntityTooLarge)
-		_, _ = fmt.Fprintf(w, "Body too large. Maximum is %d bytes", config.PrevelegedMaxBodySize)
+	return nil
+}
+
+// logAPIKeyUsage логирует использование API ключа.
+func (app *Application) logAPIKeyUsage(apiKeyID, remoteAddr string, req *cacheRequest, logger *slog.Logger) {
+	var reason apikeysm.UsageReason
+	switch {
+	case req.TTL == 0:
+		reason = apikeysm.UsageReason_PERSISTKEY
+	case req.Length < config.UnprivelegedMinKeyLength:
+		reason = apikeysm.UsageReason_CUSTOMKEYLEN
+	case req.RequestedKey != "":
+		reason = apikeysm.UsageReason_CUSTOMKEY
+	case len(req.Body) > int(config.UnprevelegedMaxBodySize):
+		reason = apikeysm.UsageReason_LARGEBODY
+	default:
 		return
 	}
 
-	body, readBodyErr := io.ReadAll(r.Body)
-
-	if readBodyErr != io.EOF && readBodyErr != nil {
-		logger.Error(
-			"Fail to read body",
-			"error", readBodyErr,
-			"answer_code", http.StatusInternalServerError,
-		)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+	if err := app.Broker.SendAPIKeyUsageLog(apiKeyID, reason, remoteAddr); err != nil {
+		logger.Warn("Fail to publish to broker", "error", err)
 	}
+	logger.Debug("Sent apikey usage reason to broker", "reason", reason)
+}
 
-	if isURL {
-		body = []byte(strings.TrimSpace(string(body)))
-		if !validateURL(string(body)) {
-			w.WriteHeader(http.StatusUnprocessableEntity)
-			_, _ = fmt.Fprint(w, "Invalid 'url' parameter")
-			return
-		}
+func (app *Application) saveKey(req *cacheRequest) (string, error) {
+	record := storage.KeyRecord{
+		Body:       req.Body,
+		Disposable: req.Disposable != 0,
+		Countdown:  req.Disposable,
+		URL:        req.IsURL,
+		Clicks:     0,
 	}
-
-	var record storage.KeyRecord
-	record.Body = body
-	record.Disposable = disposable != 0
-	record.Countdown = disposable
-	record.URL = isURL
-	record.Clicks = 0
 
 	var key string
 	var err error
 
-	if requestedKey == "" {
-		key, err = keys.CacheGeneratedKey(app.DB, 4*time.Second, ttl, length, record)
+	if req.RequestedKey == "" {
+		key, err = keys.CacheGeneratedKey(app.DB, 4*time.Second, req.TTL, req.Length, record)
 	} else {
-		key, err = keys.CacheRequestedKey(app.DB, 4*time.Second, requestedKey, ttl, record)
-		if err != nil {
-			if errors.Is(err, keys.ErrKeyAlreadyTaken) {
-				logger.Warn(
-					"Attempt to take already taken key",
-					"answer_code", http.StatusConflict,
-				)
-				w.WriteHeader(http.StatusConflict)
-				_, _ = fmt.Fprint(w, "Key already taken")
-				return
+		key, err = keys.CacheRequestedKey(app.DB, 4*time.Second, req.RequestedKey, req.TTL, record)
+		if errors.Is(err, keys.ErrKeyAlreadyTaken) {
+			return "", &cacheError{
+				Message:    "Key already taken",
+				StatusCode: http.StatusConflict,
 			}
 		}
 	}
 
 	if err != nil {
-		logger.Error(
-			"Fail to set key",
-			"error", err,
-			"answer_code", http.StatusInternalServerError,
-		)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return "", &cacheError{
+			Message:    "Failed to set key",
+			StatusCode: http.StatusInternalServerError,
+			Err:        err,
+		}
 	}
 
+	return key, nil
+}
+
+func sendSuccessResponse(w http.ResponseWriter, r *http.Request, key string) error {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
 	proto := detectProto(r)
-
-	_, answerErr := fmt.Fprintf(w, "%s://%s/%s/", proto, r.Host, key)
-	if answerErr != nil {
-		logger.Error(
-			"Fail to answer",
-			"error", answerErr,
-			"answer_code", http.StatusInternalServerError,
-		)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+	if _, err := fmt.Fprintf(w, "%s://%s/%s/", proto, r.Host, key); err != nil {
+		return &cacheError{
+			Message:    "Failed to send response",
+			StatusCode: http.StatusInternalServerError,
+			Err:        err,
+		}
 	}
 
-	logger.Info(
-		"Set key",
-		"key", key,
-		"body_size", len(body),
-		"ttl", ttl,
-		"disposable", disposable,
-		"isURL", isURL,
+	return nil
+}
+
+func handleCacheError(w http.ResponseWriter, err error, logger *slog.Logger) {
+	cacheErr, ok := err.(*cacheError)
+	if !ok {
+		cacheErr = &cacheError{
+			Message:    "Internal server error",
+			StatusCode: http.StatusInternalServerError,
+			Err:        err,
+		}
+	}
+
+	logger.Error(cacheErr.Message,
+		"error", cacheErr.Err,
+		"answer_code", cacheErr.StatusCode,
 	)
+
+	w.WriteHeader(cacheErr.StatusCode)
+	if cacheErr.Message != "" {
+		_, _ = fmt.Fprint(w, cacheErr.Message)
+	}
+}
+
+type cacheError struct {
+	Message    string
+	StatusCode int
+	Err        error
+}
+
+func (e *cacheError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("%s: %v", e.Message, e.Err)
+	}
+	return e.Message
 }
 
 // Get handle getting key.
