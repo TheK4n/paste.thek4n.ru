@@ -32,6 +32,19 @@ type cacheRequest struct {
 	APIKeyID     string
 }
 
+type cacheError struct {
+	Message    string
+	StatusCode int
+	Err        error
+}
+
+func (e *cacheError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("%s: %v", e.Message, e.Err)
+	}
+	return e.Message
+}
+
 // Cache handle to save key in db.
 func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := getClientIP(r)
@@ -46,15 +59,8 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if cacheReq.Authorized {
-		logger = logger.With("authorized", true)
-		logger.Debug("Authorize apikey", "apikey_id", cacheReq.APIKeyID)
-	}
-
-	if !cacheReq.Authorized {
-		if err := app.checkQuota(remoteAddr, logger); err != nil {
-			handleCacheError(w, err, logger)
-			return
-		}
+		logger = logger.With("authorized", true, "apikey_id", cacheReq.APIKeyID)
+		logger.Debug("Authorize apikey")
 	}
 
 	if err := app.validateCacheRequest(cacheReq); err != nil {
@@ -70,6 +76,13 @@ func (app *Application) Cache(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		handleCacheError(w, err, logger)
 		return
+	}
+
+	if !cacheReq.Authorized {
+		if err := app.checkQuota(remoteAddr, logger); err != nil {
+			handleCacheError(w, err, logger)
+			return
+		}
 	}
 
 	if err := sendSuccessResponse(w, r, key); err != nil {
@@ -92,19 +105,22 @@ func (app *Application) processCacheRequest(r *http.Request, logger *slog.Logger
 
 	req.APIKey = urlQuery.Get("apikey")
 	if req.APIKey != "" {
-		authorized, err := app.validateApikey(req.APIKey)
+		apikeyRecord, err := app.getAPIKeyRecord(req.APIKey)
+		if errors.Is(err, storage.ErrKeyNotFound) {
+			logger.Debug("Detect usage not existing apikey", "answer_code", http.StatusUnauthorized)
+			return nil, &cacheError{Message: "Cannot authorize provided apikey", StatusCode: http.StatusUnauthorized}
+		}
 		if err != nil {
 			logger.Error("Fail to check apikey", "error", err, "answer_code", http.StatusInternalServerError)
 			return nil, &cacheError{Message: "Failed to check apikey", StatusCode: http.StatusInternalServerError, Err: err}
 		}
-		req.Authorized = authorized
 
-		if authorized {
-			apiKeyID, err := app.getAPIKeyID(req.APIKey)
-			if err != nil {
-				logger.Warn("Fail to fetch apikey id")
-			}
-			req.APIKeyID = apiKeyID
+		req.Authorized = apikeyRecord.Valid
+		req.APIKeyID = apikeyRecord.ID
+
+		if !req.Authorized {
+			logger.Warn("Detect usage revoked apikey", "answer_code", http.StatusUnauthorized, "apikey_id", req.APIKeyID)
+			return nil, &cacheError{Message: "Cannot authorize provided apikey", StatusCode: http.StatusUnauthorized}
 		}
 	}
 
@@ -337,19 +353,6 @@ func handleCacheError(w http.ResponseWriter, err error, logger *slog.Logger) {
 	}
 }
 
-type cacheError struct {
-	Message    string
-	StatusCode int
-	Err        error
-}
-
-func (e *cacheError) Error() string {
-	if e.Err != nil {
-		return fmt.Sprintf("%s: %v", e.Message, e.Err)
-	}
-	return e.Message
-}
-
 func getTTL(v url.Values) (time.Duration, error) {
 	ttlQuery := v.Get("ttl")
 
@@ -479,23 +482,14 @@ func validateURL(str string) bool {
 	return err == nil && u.Scheme != "" && u.Host != ""
 }
 
-func (app *Application) validateApikey(str string) (bool, error) {
+func (app *Application) getAPIKeyRecord(str string) (storage.APIKeyRecord, error) {
 	record, err := app.APIKeysDB.Get(context.Background(), str)
 	if errors.Is(err, storage.ErrKeyNotFound) {
-		return false, nil
+		return record, fmt.Errorf("apikey not found: %w", err)
 	}
 	if err != nil {
-		return false, fmt.Errorf("fail to get api key: %w", err)
+		return record, fmt.Errorf("fail to get api key: %w", err)
 	}
 
-	return record.Valid, nil
-}
-
-func (app *Application) getAPIKeyID(str string) (string, error) {
-	record, err := app.APIKeysDB.Get(context.Background(), str)
-	if err != nil {
-		return "", fmt.Errorf("fail to get api key id: %w", err)
-	}
-
-	return record.ID, nil
+	return record, nil
 }
