@@ -18,7 +18,6 @@ Copy/Paste and URL shortener web service
 
 
 ## Setup
-
 ```sh
 cd "$(mktemp -d)"
 git clone https://github.com/thek4n/paste.thek4n.name .
@@ -29,7 +28,6 @@ docker compose up -d
 ## Usage
 
 ### API
-
 Put text and get it by unique url
 ```sh
 URL="$(curl -d 'Hello' 'localhost:8081/')"
@@ -110,7 +108,6 @@ Non authorized has quota 50 post requests in 24 hours
 
 
 ### APIKEYS
-
 Generate new api key:
 ```sh
 export REDIS_HOST=localhost  # Host of redis db or container
@@ -123,7 +120,6 @@ export REDIS_HOST=localhost  # Host of redis db or container
 
 
 ## Building
-
 ```sh
 ./make
 ```
@@ -131,10 +127,10 @@ Output in directory `bin`
 
 
 ## Tests
-
-Before test you need to setup redis db. In docker for example:
+Before test you need to setup redis-db and rabbitmq. In docker for example:
 ```sh
-docker run --rm -d -p 6379 --name redis redis
+docker run --rm -d -p 6379 --name redis redis && \
+docker run --rm -d -p 5672:5672 -p 15672:15672 --name rabbitmq rabbitmq:3-management
 ```
 Run tests:
 ```sh
