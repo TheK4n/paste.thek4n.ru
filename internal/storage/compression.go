@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/thek4n/paste.thek4n.name/internal/config"
+	"github.com/thek4n/paste.thek4n.ru/internal/config"
 )
 
 func compress(data []byte) ([]byte, error) {

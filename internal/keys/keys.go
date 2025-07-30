@@ -9,8 +9,8 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/thek4n/paste.thek4n.name/internal/config"
-	"github.com/thek4n/paste.thek4n.name/internal/storage"
+	"github.com/thek4n/paste.thek4n.ru/internal/config"
+	"github.com/thek4n/paste.thek4n.ru/internal/storage"
 )
 
 // ErrKeyAlreadyTaken is error when key is already taken.

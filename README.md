@@ -4,8 +4,8 @@
   <a href="https://github.com/TheK4n">
     <img src="https://img.shields.io/github/followers/TheK4n?label=Follow&style=social">
   </a>
-  <a href="https://github.com/TheK4n/paste.thek4n.name">
-    <img src="https://img.shields.io/github/stars/TheK4n/paste.thek4n.name?style=social">
+  <a href="https://github.com/TheK4n/paste.thek4n.ru">
+    <img src="https://img.shields.io/github/stars/TheK4n/paste.thek4n.ru?style=social">
   </a>
 </p>
 
@@ -20,7 +20,7 @@ Copy/Paste and URL shortener web service
 ## Setup
 ```sh
 cd "$(mktemp -d)"
-git clone https://github.com/thek4n/paste.thek4n.name .
+git clone https://github.com/thek4n/paste.thek4n.ru .
 docker compose up -d
 ```
 

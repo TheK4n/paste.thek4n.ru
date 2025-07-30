@@ -100,7 +100,7 @@ steps:
       port: 22
       script:
         - |
-          cd "/home/thek4n/services/paste.thek4n.name" && \
+          cd "/home/thek4n/services/paste.thek4n.ru" && \
           IMAGE_TAG="${DRONE_TAG}" docker compose up -d
     when:
       event:

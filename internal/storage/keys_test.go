@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/thek4n/paste.thek4n.name/internal/config"
+	"github.com/thek4n/paste.thek4n.ru/internal/config"
 )
 
 func TestMain(m *testing.M) {

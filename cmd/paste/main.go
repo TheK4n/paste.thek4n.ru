@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thek4n/paste.thek4n.name/internal/apikeys"
-	"github.com/thek4n/paste.thek4n.name/internal/config"
-	"github.com/thek4n/paste.thek4n.name/internal/handlers"
-	"github.com/thek4n/paste.thek4n.name/internal/storage"
+	"github.com/thek4n/paste.thek4n.ru/internal/apikeys"
+	"github.com/thek4n/paste.thek4n.ru/internal/config"
+	"github.com/thek4n/paste.thek4n.ru/internal/handlers"
+	"github.com/thek4n/paste.thek4n.ru/internal/storage"
 
 	flags "github.com/jessevdk/go-flags"
 )

@@ -8,8 +8,8 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/thek4n/paste.thek4n.name/internal/config"
-	"github.com/thek4n/paste.thek4n.name/pkg/apikeys"
+	"github.com/thek4n/paste.thek4n.ru/internal/config"
+	"github.com/thek4n/paste.thek4n.ru/pkg/apikeys"
 )
 
 // Broker contains amqp channel.

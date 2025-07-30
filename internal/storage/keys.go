@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/thek4n/paste.thek4n.name/internal/config"
+	"github.com/thek4n/paste.thek4n.ru/internal/config"
 )
 
 // ErrKeyNotFound error when key not found.

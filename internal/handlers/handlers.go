@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/thek4n/paste.thek4n.name/internal/apikeys"
-	"github.com/thek4n/paste.thek4n.name/internal/storage"
+	"github.com/thek4n/paste.thek4n.ru/internal/apikeys"
+	"github.com/thek4n/paste.thek4n.ru/internal/storage"
 )
 
 // Application struct contains databases connections.

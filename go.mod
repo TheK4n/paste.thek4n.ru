@@ -1,4 +1,4 @@
-module github.com/thek4n/paste.thek4n.name
+module github.com/thek4n/paste.thek4n.ru
 
 go 1.24
 

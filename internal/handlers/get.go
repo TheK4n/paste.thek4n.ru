@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/thek4n/paste.thek4n.name/internal/keys"
-	"github.com/thek4n/paste.thek4n.name/internal/storage"
+	"github.com/thek4n/paste.thek4n.ru/internal/keys"
+	"github.com/thek4n/paste.thek4n.ru/internal/storage"
 )
 
 const redirectBody = `<html><head>

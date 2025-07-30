@@ -14,10 +14,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/thek4n/paste.thek4n.name/internal/config"
-	"github.com/thek4n/paste.thek4n.name/internal/keys"
-	"github.com/thek4n/paste.thek4n.name/internal/storage"
-	apikeysm "github.com/thek4n/paste.thek4n.name/pkg/apikeys"
+	"github.com/thek4n/paste.thek4n.ru/internal/config"
+	"github.com/thek4n/paste.thek4n.ru/internal/keys"
+	"github.com/thek4n/paste.thek4n.ru/internal/storage"
+	apikeysm "github.com/thek4n/paste.thek4n.ru/pkg/apikeys"
 )
 
 type cacheRequestParams struct {
