@@ -12,6 +12,9 @@ import (
 //go:embed docs/templates
 var templatesFS embed.FS
 
+//go:embed docs/static
+var staticFS embed.FS
+
 type parameterLocation string
 
 const (
@@ -67,49 +70,55 @@ type (
 	}
 )
 
+// DocsStaticHandler responses with static for interactive docs.
+func (app *Application) DocsStaticHandler() http.Handler {
+	return http.FileServerFS(staticFS)
+}
+
 // DocsHandler renders HTML documentation for the API.
 func (app *Application) DocsHandler(w http.ResponseWriter, r *http.Request) {
 	tmpl, err := template.ParseFS(templatesFS, "docs/templates/main.tmpl")
 	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	doc := app.buildAPIDoc(r)
+	doc := buildAPIDoc(r, app.Version, app.HealthcheckEnabled)
 
 	if err := tmpl.Execute(w, doc); err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 }
 
 // buildAPIDoc constructs the API documentation structure.
-func (app *Application) buildAPIDoc(r *http.Request) apiDoc {
+func buildAPIDoc(r *http.Request, version string, healthcheckEnabled bool) apiDoc {
 	baseURL := fmt.Sprintf("%s://%s", detectProto(r), r.Host)
 
 	return apiDoc{
 		Title:       "Paste.thek4n.ru API",
 		Description: "This API provides access to all the awesome features of our service.",
 		BaseURL:     baseURL,
-		Version:     app.Version,
-		Sections:    app.buildSections(baseURL),
+		Version:     version,
+		Sections:    buildSections(baseURL, healthcheckEnabled, version),
 	}
 }
 
 // buildSections constructs all documentation sections.
-func (app *Application) buildSections(baseURL string) []section {
+func buildSections(baseURL string, healthcheckEnabled bool, version string) []section {
 	sections := []section{
-		app.buildMainSection(baseURL),
+		buildMainSection(baseURL),
 	}
 
-	if app.HealthcheckEnabled {
-		sections = append(sections, app.buildHealthcheckSection())
+	if healthcheckEnabled {
+		sections = append(sections, buildHealthcheckSection(version))
 	}
 
 	return sections
 }
 
 // buildMainSection constructs the main API operations section.
-func (app *Application) buildMainSection(baseURL string) section {
+func buildMainSection(baseURL string) section {
 	return section{
 		Name:        "Main",
 		Description: "Main operations",
@@ -120,7 +129,7 @@ func (app *Application) buildMainSection(baseURL string) section {
 				Path:            "/",
 				Description:     "Save body",
 				ResponseExample: fmt.Sprintf("%s/eoVbybwLnlc49q/", baseURL),
-				Parameters:      app.getCreateRecordParameters(),
+				Parameters:      getCreateRecordParameters(),
 			},
 			{
 				ID:              "get-record",
@@ -128,7 +137,7 @@ func (app *Application) buildMainSection(baseURL string) section {
 				Path:            "/{key}",
 				Description:     "Get previously saved body with key. If key was saved as url - you will be redirected.",
 				ResponseExample: "body",
-				Parameters:      app.getKeyPathParameter(),
+				Parameters:      getKeyPathParameter(),
 			},
 			{
 				ID:              "get-record-clicks",
@@ -136,14 +145,14 @@ func (app *Application) buildMainSection(baseURL string) section {
 				Path:            "/{key}/clicks",
 				Description:     "Get clicks count for key.",
 				ResponseExample: "1",
-				Parameters:      app.getKeyPathParameter(),
+				Parameters:      getKeyPathParameter(),
 			},
 		},
 	}
 }
 
 // buildHealthcheckSection constructs the healthcheck section.
-func (app *Application) buildHealthcheckSection() section {
+func buildHealthcheckSection(version string) section {
 	return section{
 		Name:        "Healthcheck",
 		Description: "Healthcheck operations",
@@ -157,14 +166,14 @@ func (app *Application) buildHealthcheckSection() section {
 	"version": "%s",
 	"availability": true,
 	"msg": "ok"
-}`, app.Version),
+}`, version),
 			},
 		},
 	}
 }
 
 // getCreateRecordParameters returns parameters for the create record endpoint.
-func (app *Application) getCreateRecordParameters() []parameter {
+func getCreateRecordParameters() []parameter {
 	return []parameter{
 		{
 			Name:        "ttl",
@@ -226,7 +235,7 @@ func (app *Application) getCreateRecordParameters() []parameter {
 }
 
 // getKeyPathParameter returns the common key path parameter.
-func (app *Application) getKeyPathParameter() []parameter {
+func getKeyPathParameter() []parameter {
 	return []parameter{
 		{
 			Name:        "key",
