@@ -202,5 +202,6 @@ func addHandlers(mux *http.ServeMux, h *handlers.Application, opts *options) {
 	if opts.EnableInteractiveDocs {
 		endpoint := fmt.Sprintf("GET /%s/{$}", opts.InteractiveDocsEndpoint)
 		mux.HandleFunc(endpoint, h.DocsHandler)
+		mux.Handle("/docs/static/", h.DocsStaticHandler())
 	}
 }

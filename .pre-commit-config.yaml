@@ -18,13 +18,13 @@ repos:
       - id: golangci-lint
         name: golangci-lint linter
         language: system
-        entry: env GOFLAGS="-tags=integration,e2e" go tool golangci-lint run --new-from-rev HEAD --fix --timeout=5m
+        entry: env GOFLAGS="-tags=frontend,integration,e2e" go tool golangci-lint run --new-from-rev HEAD --fix --timeout=5m
         pass_filenames: false
 
       - id: golangci-lint-fmt
         name: golangci-lint formatter
         language: system
-        entry: env GOFLAGS="-tags=integration,e2e" go tool golangci-lint fmt
+        entry: env GOFLAGS="-tags=frontend,integration,e2e" go tool golangci-lint fmt
         pass_filenames: false
 
   - repo: https://github.com/jorisroovers/gitlint
