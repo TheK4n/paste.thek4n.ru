@@ -13,12 +13,13 @@ import (
 
 // Application struct contains databases connections.
 type Application struct {
-	Version   string
-	DB        storage.KeysDB
-	APIKeysDB storage.APIKeysDB
-	QuotaDB   storage.QuotaDB
-	Broker    apikeys.Broker
-	Logger    slog.Logger
+	Version            string
+	DB                 storage.KeysDB
+	APIKeysDB          storage.APIKeysDB
+	QuotaDB            storage.QuotaDB
+	Broker             apikeys.Broker
+	Logger             slog.Logger
+	HealthcheckEnabled bool
 }
 
 func getClientIP(r *http.Request) string {
@@ -38,4 +39,17 @@ func getClientIP(r *http.Request) string {
 		return r.RemoteAddr
 	}
 	return ip
+}
+
+func detectProto(r *http.Request) string {
+	if r.TLS != nil {
+		return "https"
+	}
+
+	proto := r.Header.Get("X-Forwarded-Proto")
+	if proto != "" {
+		return proto
+	}
+
+	return "http"
 }

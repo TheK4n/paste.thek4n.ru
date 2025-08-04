@@ -482,19 +482,6 @@ func getURL(v url.Values) (bool, error) {
 	return false, fmt.Errorf("URL argument can be only 'true' or 'false'")
 }
 
-func detectProto(r *http.Request) string {
-	if r.TLS != nil {
-		return "https"
-	}
-
-	proto := r.Header.Get("X-Forwarded-Proto")
-	if proto != "" {
-		return proto
-	}
-
-	return "http"
-}
-
 func validateURL(str string) bool {
 	u, err := url.Parse(str)
 	return err == nil && u.Scheme != "" && u.Host != ""

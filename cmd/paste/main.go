@@ -20,18 +20,20 @@ import (
 var version = "built-from-source"
 
 type options struct {
-	Port           int    `short:"p" long:"port" default:"80" description:"Port to listen"`
-	Host           string `long:"host" default:"localhost" description:"Host to listen"`
-	Health         bool   `long:"health" description:"Enable health handler on /health/ URL"`
-	DBPort         int    `long:"dbport" default:"6379" description:"Database port"`
-	DBHost         string `long:"dbhost" default:"localhost" description:"Database host"`
-	ShowVersion    bool   `short:"v" long:"version" description:"Show version and exit"`
-	Logger         string `long:"logger" default:"plain" choice:"json" choice:"plain" description:"Choose type logger"`
-	LogLevel       string `long:"loglevel" default:"INFO" choice:"DEBUG" choice:"debug" choice:"INFO" choice:"info" choice:"WARN" choice:"warn" choice:"ERROR" choice:"error" choice:"TRACE" choice:"trace" description:"Logger level"`
-	BrokerHost     string `long:"brokerhost" default:"localhost" description:"AMQP broker host"`
-	BrokerPort     int    `long:"brokerport" default:"5672" description:"AMQP broker port"`
-	BrokerUser     string `long:"brokeruser" default:"guest" description:"AMQP broker user"`
-	BrokerPassword string `long:"brokerpassword" default:"guest" description:"AMQP broker password"`
+	Port                    int    `short:"p" long:"port" default:"80" description:"Port to listen"`
+	Host                    string `long:"host" default:"localhost" description:"Host to listen"`
+	EnableHealthcheck       bool   `long:"health" description:"Enable health handler on /health/ URL"`
+	DBPort                  int    `long:"dbport" default:"6379" description:"Database port"`
+	DBHost                  string `long:"dbhost" default:"localhost" description:"Database host"`
+	ShowVersion             bool   `short:"v" long:"version" description:"Show version and exit"`
+	Logger                  string `long:"logger" default:"plain" choice:"json" choice:"plain" description:"Choose type logger"`
+	LogLevel                string `long:"loglevel" default:"INFO" choice:"DEBUG" choice:"debug" choice:"INFO" choice:"info" choice:"WARN" choice:"warn" choice:"ERROR" choice:"error" choice:"TRACE" choice:"trace" description:"Logger level"`
+	BrokerHost              string `long:"brokerhost" default:"localhost" description:"AMQP broker host"`
+	BrokerPort              int    `long:"brokerport" default:"5672" description:"AMQP broker port"`
+	BrokerUser              string `long:"brokeruser" default:"guest" description:"AMQP broker user"`
+	BrokerPassword          string `long:"brokerpassword" default:"guest" description:"AMQP broker password"`
+	EnableInteractiveDocs   bool   `long:"docs" description:"Enable interactive documentation"`
+	InteractiveDocsEndpoint string `long:"docs-endpoint" default:"docs" description:"Endpoint to interactive documentation"`
 }
 
 var mux = http.NewServeMux()
@@ -124,12 +126,13 @@ func runServer(opts *options) {
 	loggerb.Debug("Successfully initialized amqp broker channel")
 
 	handlers := handlers.Application{
-		Version:   version,
-		DB:        *db,
-		APIKeysDB: *apikeysDb,
-		QuotaDB:   *quotaDb,
-		Broker:    *broker,
-		Logger:    *logger,
+		Version:            version,
+		DB:                 *db,
+		APIKeysDB:          *apikeysDb,
+		QuotaDB:            *quotaDb,
+		Broker:             *broker,
+		Logger:             *logger,
+		HealthcheckEnabled: opts.EnableHealthcheck,
 	}
 
 	addHandlers(mux, &handlers, opts)
@@ -193,7 +196,11 @@ func addHandlers(mux *http.ServeMux, h *handlers.Application, opts *options) {
 	mux.HandleFunc("GET /{key}/clicks/{$}", h.GetClicks)
 	mux.HandleFunc("POST /{$}", h.Cache)
 
-	if opts.Health {
+	if opts.EnableHealthcheck {
 		mux.HandleFunc("GET /health/{$}", h.Healthcheck)
+	}
+	if opts.EnableInteractiveDocs {
+		endpoint := fmt.Sprintf("GET /%s/{$}", opts.InteractiveDocsEndpoint)
+		mux.HandleFunc(endpoint, h.DocsHandler)
 	}
 }

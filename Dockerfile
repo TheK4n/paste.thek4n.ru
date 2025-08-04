@@ -18,4 +18,4 @@ COPY --from=builder /app/ /app
 
 EXPOSE 80
 
-CMD ["/app/paste", "--host", "0.0.0.0", "--port", "80", "--dbport", "6379", "--health"]
+CMD ["/app/paste", "--host", "0.0.0.0", "--port", "80", "--dbport", "6379", "--health", "--docs"]
