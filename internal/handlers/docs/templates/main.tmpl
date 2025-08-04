@@ -113,6 +113,24 @@
         .param-table tr:nth-child(even) {
           background-color: #f9f9f9;
         }
+        .param-input {
+          margin-bottom: 10px;
+        }
+        .param-input label {
+          display: inline-block;
+          width: 150px;
+          font-weight: bold;
+        }
+        .param-input input, .param-input select, .param-input textarea {
+          padding: 5px;
+          width: 200px;
+          border: 1px solid #ddd;
+          border-radius: 3px;
+        }
+        .param-input textarea {
+          width: 100%;
+          min-height: 60px;
+        }
     </style>
 </head>
 <body>
@@ -181,6 +199,31 @@
         </div>
 
         <div id="try-{{.ID}}" class="tabcontent">
+            {{if .Parameters}}
+            <h3>Parameters</h3>
+            <div id="params-{{.ID}}">
+                {{range .Parameters}}
+                <div class="param-input">
+                    <label for="{{.Name}}">{{.Name}} ({{.In}}):</label>
+                    {{if eq .Type "boolean"}}
+                    <select id="{{.Name}}">
+                        <option value="true" {{if eq .Default "true"}}selected{{end}}>true</option>
+                        <option value="false" {{if eq .Default "false"}}selected{{end}}>false</option>
+                    </select>
+                    {{else if eq .Type "integer"}}
+                    <input type="number" id="{{.Name}}" value="{{.Default}}" step="1">
+                    {{else if eq .Type "number"}}
+                    <input type="number" id="{{.Name}}" value="{{.Default}}">
+                    {{else if eq .In "body"}}
+                    <textarea id="{{.Name}}">{{.Default}}</textarea>
+                    {{else}}
+                    <input type="text" id="{{.Name}}" value="{{.Default}}">
+                    {{end}}
+                </div>
+                {{end}}
+            </div>
+            {{end}}
+
             <button class="try-it" onclick="tryEndpoint('{{.Method}}', '{{.Path}}', '{{.ID}}')">Try-it</button>
             <div class="response-area" id="response-{{.ID}}">
                 <p>Press "Try-it" to see result</p>
@@ -205,45 +248,97 @@
             evt.currentTarget.className += " active";
         }
 
-        function tryEndpoint(method, path, id) {
-            const responseArea = document.getElementById(`response-${id}`);
-            responseArea.innerHTML = '<p>Sending...</p>';
+        function tryEndpoint(method, path, endpointId) {
+            const responseArea = document.getElementById(`response-${endpointId}`);
+            responseArea.innerHTML = '<p>Sending request...</p>';
 
-            fetch(`{{.BaseURL}}${path}`, {
+            const paramsContainer = document.getElementById(`params-${endpointId}`);
+            let queryParams = {};
+            let pathParams = {};
+            let bodyParams = null;
+            let headers = {
+                'Content-Type': 'application/json'
+            };
+
+            if (paramsContainer) {
+                const paramInputs = paramsContainer.querySelectorAll('.param-input');
+
+                paramInputs.forEach(inputDiv => {
+                    const label = inputDiv.querySelector('label');
+                    const input = inputDiv.querySelector('input, select, textarea');
+
+                    if (!label || !input) return;
+
+                    const labelText = label.textContent;
+                    const paramName = labelText.split(' ')[0];
+                    const paramIn = labelText.match(/\((.*?)\)/)[1];
+                    const paramValue = input.value;
+
+                    if (paramIn === 'query') {
+                        queryParams[paramName] = paramValue;
+                    } else if (paramIn === 'path') {
+                        pathParams[paramName] = paramValue;
+                    } else if (paramIn === 'body') {
+                        try {
+                            bodyParams = JSON.parse(paramValue);
+                        } catch (e) {
+                            bodyParams = paramValue;
+                        }
+                    } else if (paramIn === 'header') {
+                        headers[paramName] = paramValue;
+                    }
+                });
+            }
+
+            let finalPath = path;
+            for (const [key, value] of Object.entries(pathParams)) {
+                finalPath = finalPath.replace(`{${key}}`, value);
+            }
+
+            let url = `{{.BaseURL}}${finalPath}`;
+            const queryString = Object.keys(queryParams)
+                .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(queryParams[key])}`)
+                .join('&');
+
+            if (queryString) {
+                url += (url.includes('?') ? '&' : '?') + queryString;
+            }
+
+            const options = {
                 method: method,
-                headers: {
-                    'Content-Type': 'text/plain',
-                },
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response;
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
+                headers: headers
+            };
 
-                const contentType = response.headers.get('Content-Type');
+            if (bodyParams !== null && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
+                if (typeof bodyParams === 'object') {
+                    options.body = JSON.stringify(bodyParams);
+                } else {
+                    options.body = bodyParams;
+                    if (!headers['Content-Type']) {
+                        options.headers['Content-Type'] = 'text/plain';
+                    }
+                }
+            }
 
-                if (contentType?.includes('application/json')) {
-                    return response.json(); // парсим JSON
-                } else {
-                    return response.text(); // или получаем текст
-                }
-            })
-            .then(data => {
-                if (typeof data === 'object') {
-                    responseArea.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
-                } else {
-                    responseArea.innerHTML = `<pre>${data}</pre>`;
-                }
-            })
-            .catch(error => {
-                responseArea.innerHTML = `<p style="color: red;">Ошибка: ${error.message}</p>`;
-            });
+            fetch(url, options)
+                .then(response => {
+                    const contentType = response.headers.get('Content-Type');
+                    if (contentType?.includes('application/json')) {
+                        return response.json();
+                    } else {
+                        return response.text();
+                    }
+                })
+                .then(data => {
+                    if (typeof data === 'object') {
+                        responseArea.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    } else {
+                        responseArea.innerHTML = `<pre>${data}</pre>`;
+                    }
+                })
+                .catch(error => {
+                    responseArea.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+                });
         }
     </script>
 </body>

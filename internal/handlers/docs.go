@@ -49,7 +49,8 @@ type parameter struct {
 func (app *Application) DocsHandler(w http.ResponseWriter, r *http.Request) {
 	tmpl, err := template.ParseFS(templatesFS, "docs/templates/main.tmpl")
 	if err != nil {
-		panic(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	baseURL := fmt.Sprintf("%s://%s", detectProto(r), r.Host)
@@ -118,6 +119,14 @@ func (app *Application) DocsHandler(w http.ResponseWriter, r *http.Request) {
 								Description: "Apikey to use privileged features",
 								Default:     "",
 							},
+							{
+								Name:        "body",
+								Type:        "string",
+								In:          "body",
+								Required:    true,
+								Description: "Body to cache.",
+								Default:     "",
+							},
 						},
 					},
 					{
@@ -133,7 +142,7 @@ func (app *Application) DocsHandler(w http.ResponseWriter, r *http.Request) {
 								In:          "path",
 								Required:    true,
 								Description: "Key to request.",
-								Default:     "-",
+								Default:     "",
 							},
 						},
 					},
@@ -150,7 +159,7 @@ func (app *Application) DocsHandler(w http.ResponseWriter, r *http.Request) {
 								In:          "path",
 								Required:    true,
 								Description: "Key to request.",
-								Default:     "-",
+								Default:     "",
 							},
 						},
 					},
@@ -181,6 +190,7 @@ func (app *Application) DocsHandler(w http.ResponseWriter, r *http.Request) {
 
 	err = tmpl.Execute(w, apiDoc)
 	if err != nil {
-		panic(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 }
