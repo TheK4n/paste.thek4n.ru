@@ -137,6 +137,23 @@ func (app *Application) DocsHandler(w http.ResponseWriter, r *http.Request) {
 							},
 						},
 					},
+					{
+						ID:              "get-record-clicks",
+						Method:          "GET",
+						Path:            "/{key}/clicks",
+						Description:     "Get clicks count for key.",
+						ResponseExample: `1`,
+						Parameters: []parameter{
+							{
+								Name:        "key",
+								Type:        "string",
+								In:          "path",
+								Required:    true,
+								Description: "Key to request.",
+								Default:     "-",
+							},
+						},
+					},
 				},
 			},
 		},
