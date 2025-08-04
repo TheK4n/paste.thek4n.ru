@@ -77,7 +77,7 @@ func (app *Application) DocsStaticHandler() http.Handler {
 
 // DocsHandler renders HTML documentation for the API.
 func (app *Application) DocsHandler(w http.ResponseWriter, r *http.Request) {
-	tmpl, err := template.ParseFS(templatesFS, "docs/templates/main.tmpl")
+	tmpl, err := template.ParseFS(templatesFS, "docs/templates/main.tmpl", "docs/templates/base.tmpl")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
