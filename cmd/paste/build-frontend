@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -eu
+
+readonly FRONTEND_DIRECTORY="${1}"
+
+rm -rf "${FRONTEND_DIRECTORY}"
+cd ../../frontend/
+npm run build
+cp -r "${FRONTEND_DIRECTORY}" ../cmd/paste/

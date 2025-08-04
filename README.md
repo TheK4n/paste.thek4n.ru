@@ -121,9 +121,14 @@ export REDIS_HOST=localhost  # Host of redis db or container
 
 ## Building
 ```sh
-./make
+make
 ```
 Output in directory `bin`
+
+### Building with embedded frontend
+```sh
+VITE_API_URL=http://localhost:8080 make build-frontend
+```
 
 
 ## Tests

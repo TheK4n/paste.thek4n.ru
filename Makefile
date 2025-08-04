@@ -1,5 +1,6 @@
 APP_VERSION ?= built-from-source
 OUTPUTDIR ?= bin/
+VITE_API_URL ?= http://localhost:8080
 
 default: build
 
@@ -28,7 +29,7 @@ cover:
 	cover_profile=$$(mktemp)
 	GOMAXPROCS=1 \
 	go test \
-		-tags integration,e2e \
+		-tags frontend,integration,e2e \
 		-failfast \
 		-count=1 \
 		-cover -covermode=atomic \
@@ -57,19 +58,19 @@ test:
 
 .PHONY: lint
 lint:
-	GOFLAGS="-tags=integration,e2e" \
+	GOFLAGS="-tags=frontend,integration,e2e" \
 	go tool golangci-lint run --fix --new-from-rev HEAD --timeout=5m
 
 .PHONY: lint-drone
 lint-drone:
-	GOFLAGS="-tags=integration,e2e" \
+	GOFLAGS="-tags=frontend,integration,e2e" \
 	golangci-lint run --fix --timeout=5m
 
 
 .PHONY: fmt
 fmt:
 	go fmt ./...
-	GOFLAGS="-tags=integration,e2e" \
+	GOFLAGS="-tags=frontend,integration,e2e" \
 	go vet ./...
 
 .PHONY: build
@@ -79,3 +80,8 @@ build:
 		-trimpath \
 		-ldflags "-w -s -X 'main.version=$(APP_VERSION)'" \
 		-o $(OUTPUTDIR) ./...
+
+.PHONY: build-frontend
+build-frontend:
+	VITE_API_URL="$(VITE_API_URL)" GOFLAGS="-tags=frontend" go generate ./...
+	GOFLAGS="-tags=frontend" $(MAKE) build

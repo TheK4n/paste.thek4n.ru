@@ -34,6 +34,8 @@ type options struct {
 	BrokerPassword string `long:"brokerpassword" default:"guest" description:"AMQP broker password"`
 }
 
+var mux = http.NewServeMux()
+
 func (o *options) getLogLevel() slog.Level {
 	levels := map[string]slog.Level{
 		"TRACE": config.LevelTrace,
@@ -130,7 +132,7 @@ func runServer(opts *options) {
 		Logger:    *logger,
 	}
 
-	mux := newMux(&handlers, opts)
+	addHandlers(mux, &handlers, opts)
 
 	hostport := fmt.Sprintf("%s:%d", opts.Host, opts.Port)
 
@@ -186,14 +188,12 @@ func newLoggerHandler(opts *options) (slog.Handler, error) {
 	return nil, fmt.Errorf("invalid logger")
 }
 
-func newMux(h *handlers.Application, opts *options) *http.ServeMux {
-	mux := http.NewServeMux()
+func addHandlers(mux *http.ServeMux, h *handlers.Application, opts *options) {
 	mux.HandleFunc("GET /{key}/{$}", h.Get)
 	mux.HandleFunc("GET /{key}/clicks/{$}", h.GetClicks)
 	mux.HandleFunc("POST /{$}", h.Cache)
+
 	if opts.Health {
 		mux.HandleFunc("GET /health/{$}", h.Healthcheck)
 	}
-
-	return mux
 }

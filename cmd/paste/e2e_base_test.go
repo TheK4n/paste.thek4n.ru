@@ -100,8 +100,10 @@ func setupTestServer(t *testing.T) *testServer {
 		Broker:    *broker,
 	}
 
+	mux := http.NewServeMux()
+	addHandlers(mux, &app, &opts)
 	return &testServer{
-		Server:    httptest.NewServer(newMux(&app, &opts)),
+		Server:    httptest.NewServer(mux),
 		db:        db,
 		apiKeysDB: apikeysDb,
 		quotaDB:   quotaDb,
