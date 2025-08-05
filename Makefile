@@ -84,4 +84,4 @@ build:
 .PHONY: build-frontend
 build-frontend:
 	VITE_API_URL="$(VITE_API_URL)" GOFLAGS="-tags=frontend" go generate ./...
-	GOFLAGS="-tags=frontend" $(MAKE) build
+	APP_VERSION="$(APP_VERSION) (frontend)" GOFLAGS="-tags=frontend" $(MAKE) build

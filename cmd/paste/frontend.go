@@ -9,18 +9,25 @@ import (
 	"net/http"
 )
 
-// FrontendDirectory - name of frontend directory.
-const FrontendDirectory = "dist"
+// frontendDirectory name of frontend directory.
+const frontendDirectory = "dist"
 
 //go:generate ./build-frontend dist
-//go:embed dist
-var staticFS embed.FS
+//go:embed dist/frontend/assets
+var assetsFS embed.FS
+
+//go:embed dist/index.html
+var indexFS embed.FS
 
 func init() {
-	subfs, err := fs.Sub(staticFS, FrontendDirectory)
+	assetsFS, err := fs.Sub(assetsFS, fmt.Sprintf("%s/%s/%s", frontendDirectory, "frontend", "assets"))
 	if err != nil {
 		panic(err)
 	}
-	mux.Handle("GET /", http.FileServerFS(subfs))
-	version = fmt.Sprintf("%s (frontend)", version)
+	indexFS, err := fs.Sub(indexFS, frontendDirectory)
+	if err != nil {
+		panic(err)
+	}
+	mux.Handle("GET /frontend/assets/", http.StripPrefix("/frontend/assets", http.FileServerFS(assetsFS)))
+	mux.Handle("GET /{$}", http.FileServerFS(indexFS))
 }
