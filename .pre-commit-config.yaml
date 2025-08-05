@@ -20,12 +20,14 @@ repos:
         language: system
         entry: env GOFLAGS="-tags=frontend,integration,e2e" go tool golangci-lint run --new-from-rev HEAD --fix --timeout=5m
         pass_filenames: false
+        always_run: true
 
       - id: golangci-lint-fmt
         name: golangci-lint formatter
         language: system
         entry: env GOFLAGS="-tags=frontend,integration,e2e" go tool golangci-lint fmt
         pass_filenames: false
+        always_run: true
 
   - repo: https://github.com/jorisroovers/gitlint
     rev: v0.19.1
