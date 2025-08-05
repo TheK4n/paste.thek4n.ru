@@ -41,6 +41,10 @@ function tryEndpoint(baseURL, method, path, endpointId) {
             if (paramIn === 'query') {
                 queryParams[paramName] = paramValue;
             } else if (paramIn === 'path') {
+                if (!paramValue) {
+                    responseArea.innerHTML = `<p style="color: red;">Error: path parameter cannot be empty</p>`;
+                    return
+                }
                 pathParams[paramName] = paramValue;
             } else if (paramIn === 'body') {
                 try {
