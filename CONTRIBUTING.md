@@ -60,6 +60,8 @@ We use pre-commit to automatically enforce code quality checks before commits:
 python3 -m venv venv
 . ./venv/bin/activate
 pip install pre-commit
+pre-commit autoupdate
 pre-commit install
+pre-commit install --hook-type commit-msg
 ```
 Hooks will now run automatically on every commit.
