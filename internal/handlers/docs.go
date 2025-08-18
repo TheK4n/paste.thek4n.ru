@@ -12,6 +12,8 @@ import (
 //go:embed docs/templates
 var templatesFS embed.FS
 
+var tpl = template.Must(template.ParseFS(templatesFS, "docs/templates/*.tmpl"))
+
 //go:embed docs/static
 var staticFS embed.FS
 
@@ -77,15 +79,9 @@ func (app *Application) DocsStaticHandler() http.Handler {
 
 // DocsHandler renders HTML documentation for the API.
 func (app *Application) DocsHandler(w http.ResponseWriter, r *http.Request) {
-	tmpl, err := template.ParseFS(templatesFS, "docs/templates/main.tmpl", "docs/templates/base.tmpl")
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
 	doc := buildAPIDoc(r, app.Version, app.HealthcheckEnabled)
 
-	if err := tmpl.Execute(w, doc); err != nil {
+	if err := tpl.Execute(w, doc); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
