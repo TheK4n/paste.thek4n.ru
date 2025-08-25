@@ -1,4 +1,4 @@
-package handlers
+package webhandlers
 
 import (
 	"errors"
@@ -6,12 +6,11 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 
-	"github.com/thek4n/paste.thek4n.ru/internal/keys"
-	"github.com/thek4n/paste.thek4n.ru/internal/storage"
+	"github.com/thek4n/paste.thek4n.ru/internal/domain/domainerrors"
+	"github.com/thek4n/paste.thek4n.ru/internal/domain/objectvalue"
 )
 
 const redirectBody = `<html><head>
@@ -22,7 +21,7 @@ const redirectBody = `<html><head>
 </body></html>`
 
 // Get handle getting key.
-func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
+func (app *Handlers) Get(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := getClientIP(r)
 	requestUUID := uuid.NewString()
 
@@ -41,9 +40,9 @@ func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 		"key", key,
 	)
 
-	record, err := keys.Get(app.DB, key, 4*time.Second)
+	record, err := app.getService.GetBody(objectvalue.RecordKey(key))
 	if err != nil {
-		if errors.Is(err, storage.ErrKeyNotFound) {
+		if errors.Is(err, domainerrors.ErrRecordNotFound) || errors.Is(err, domainerrors.ErrRecordCounterExhausted) || errors.Is(err, domainerrors.ErrRecordExpired) {
 			w.WriteHeader(http.StatusNotFound)
 
 			_, writeErr := w.Write([]byte("404 Not Found"))
@@ -67,7 +66,7 @@ func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if record.URL {
+	if record.IsURL {
 		answer := make([]byte, 0)
 		answer = fmt.Appendf(answer, redirectBody, string(record.Body))
 		w.Header().Set("content-type", http.DetectContentType(answer))
@@ -106,7 +105,7 @@ func (app *Application) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetClicks handle getting clicks for key request.
-func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
+func (app *Handlers) GetClicks(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := getClientIP(r)
 	requestUUID := uuid.NewString()
 
@@ -125,9 +124,9 @@ func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
 		"key", key,
 	)
 
-	clicks, err := keys.GetClicks(app.DB, key, 4*time.Second)
+	clicks, err := app.getService.GetClicks(objectvalue.RecordKey(key))
 	if err != nil {
-		if errors.Is(err, storage.ErrKeyNotFound) {
+		if errors.Is(err, domainerrors.ErrRecordNotFound) {
 			w.WriteHeader(http.StatusNotFound)
 
 			_, writeErr := fmt.Fprint(w, "404 Not Found")
@@ -151,7 +150,7 @@ func (app *Application) GetClicks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body := []byte(strconv.Itoa(clicks))
+	body := []byte(strconv.Itoa(int(clicks)))
 	w.Header().Set("content-type", http.DetectContentType(body))
 	w.WriteHeader(http.StatusOK)
 

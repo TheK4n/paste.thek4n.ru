@@ -3,28 +3,35 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/thek4n/paste.thek4n.ru/internal/apikeys"
-	"github.com/thek4n/paste.thek4n.ru/internal/handlers"
-	"github.com/thek4n/paste.thek4n.ru/internal/storage"
+	"github.com/thek4n/paste.thek4n.ru/internal/domain/config"
+	"github.com/thek4n/paste.thek4n.ru/internal/domain/event"
 )
+
+type TestQuotaConfig struct{}
+
+func (c TestQuotaConfig) QuotaResetPeriod() time.Duration {
+	defconf := config.DefaultQuotaConfig{}
+	return defconf.QuotaResetPeriod()
+}
+
+func (c TestQuotaConfig) Quota() int32 {
+	return math.MaxInt32
+}
 
 type testServer struct {
 	*httptest.Server
-	db        *storage.KeysDB
-	apiKeysDB *storage.APIKeysDB
-	quotaDB   *storage.QuotaDB
 }
 
 func (ts *testServer) post(path, body string) (*http.Response, error) {
@@ -62,51 +69,35 @@ func getKeyLength(t *testing.T, url string) int {
 func setupTestServer(t *testing.T) *testServer {
 	t.Helper()
 
-	redisHost := getRedisHost()
-	redisPort := 6379
+	// db, err := storage.InitKeysStorageDB(redisHost, redisPort)
+	// require.NoError(t, err, "failed to connect to keys storage")
+	//
+	// apikeysDb, err := storage.InitAPIKeysStorageDB(redisHost, redisPort)
+	// require.NoError(t, err, "failed to connect to api keys storage")
+	//
+	// quotaDb, err := storage.InitQuotaStorageDB(redisHost, redisPort)
+	// require.NoError(t, err, "failed to connect to quota storage")
 
-	db, err := storage.InitKeysStorageDB(redisHost, redisPort)
-	require.NoError(t, err, "failed to connect to keys storage")
+	// brokerConnectionURL := fmt.Sprintf(
+	// 	"amqp://%s:%s@%s:%d/",
+	// 	"guest",
+	// 	"guest",
+	// 	getBrokerHost_(),
+	// 	5672,
+	// )
 
-	apikeysDb, err := storage.InitAPIKeysStorageDB(redisHost, redisPort)
-	require.NoError(t, err, "failed to connect to api keys storage")
-
-	quotaDb, err := storage.InitQuotaStorageDB(redisHost, redisPort)
-	require.NoError(t, err, "failed to connect to quota storage")
-
-	brokerConnectionURL := fmt.Sprintf(
-		"amqp://%s:%s@%s:%d/",
-		"guest",
-		"guest",
-		getBrokerHost_(),
-		5672,
-	)
-	broker, err := apikeys.InitBroker(brokerConnectionURL, slog.Default())
-	require.NoError(t, err, "failed to connect to broker")
-
-	ctx := context.Background()
-	require.NoError(t, db.Client.FlushDB(ctx).Err())
-	require.NoError(t, apikeysDb.Client.FlushDB(ctx).Err())
-	require.NoError(t, quotaDb.Client.FlushDB(ctx).Err())
-
-	opts := options{EnableHealthcheck: true}
-
-	app := handlers.Application{
-		Version:   "test",
-		DB:        *db,
-		APIKeysDB: *apikeysDb,
-		QuotaDB:   *quotaDb,
-		Logger:    *slog.Default(),
-		Broker:    *broker,
+	opts := options{
+		EnableHealthcheck: true,
+		DBHost:            getRedisHost(),
+		DBPort:            6379,
 	}
 
+	handlers := handlersFactory(&opts, slog.Default(), event.NewPublisher(), TestQuotaConfig{})
+
 	mux := http.NewServeMux()
-	addHandlers(mux, &app, &opts)
+	addHandlers(mux, handlers, &opts)
 	return &testServer{
-		Server:    httptest.NewServer(mux),
-		db:        db,
-		apiKeysDB: apikeysDb,
-		quotaDB:   quotaDb,
+		Server: httptest.NewServer(mux),
 	}
 }
 

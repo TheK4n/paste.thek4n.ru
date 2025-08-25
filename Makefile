@@ -47,6 +47,23 @@ integration:
 		-count=1 \
 		./...
 
+.PHONY: unit
+unit:
+	GOMAXPROCS=1 \
+	go test \
+		-failfast \
+		-count=1 \
+		./...
+
+.PHONY: unit-short
+unit-short:
+	GOMAXPROCS=1 \
+	go test \
+		-short \
+		-failfast \
+		-count=1 \
+		./...
+
 .PHONY: test
 test:
 	GOMAXPROCS=1 \

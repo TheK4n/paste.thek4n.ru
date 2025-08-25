@@ -41,6 +41,6 @@ repos:
       - id: check-todos
         name: check-todos
         language: system
-        entry: sh -c "! grep --color=always --dereference-recursive --exclude-dir='node_modules' -E '^(//|#) ?TODO:? ?'"
+        entry: sh -c "! grep --color=always --binary-files=without-match --dereference-recursive --exclude-dir='node_modules' --exclude-dir='.git' --exclude='.pre-commit-config.yaml' 'TODO'"
         pass_filenames: false
         always_run: true

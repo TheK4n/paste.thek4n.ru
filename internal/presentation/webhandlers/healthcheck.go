@@ -1,13 +1,9 @@
-package handlers
+package webhandlers
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-
-	"github.com/thek4n/paste.thek4n.ru/internal/config"
-	"github.com/thek4n/paste.thek4n.ru/internal/storage"
 )
 
 type healthcheckResponse struct {
@@ -17,7 +13,7 @@ type healthcheckResponse struct {
 }
 
 // Healthcheck checks database availability and returns version.
-func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
+func (app *Handlers) Healthcheck(w http.ResponseWriter, r *http.Request) {
 	remoteAddr := getClientIP(r)
 	resp := &healthcheckResponse{
 		Version:      app.Version,
@@ -26,13 +22,13 @@ func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
 	}
 	statusCode := http.StatusOK
 
-	ctx, cancel := context.WithTimeout(context.Background(), config.HealthcheckTimeout)
-	defer cancel()
-	if !checkIsDatabaseAvailable(ctx, app.DB) {
-		resp.Availability = false
-		resp.Msg = "Error connection to database"
-		statusCode = http.StatusServiceUnavailable
-	}
+	// ctx, cancel := context.WithTimeout(context.Background(), config.HealthcheckTimeout)
+	// defer cancel()
+	// if !checkIsDatabaseAvailable(ctx, app.DB) {
+	// 	resp.Availability = false
+	// 	resp.Msg = "Error connection to database"
+	// 	statusCode = http.StatusServiceUnavailable
+	// }
 
 	if err := sendJSONResponse(w, resp, statusCode); err != nil {
 		app.Logger.Error(
@@ -45,9 +41,9 @@ func (app *Application) Healthcheck(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func checkIsDatabaseAvailable(ctx context.Context, db storage.KeysDB) bool {
-	return db.Ping(ctx)
-}
+// func checkIsDatabaseAvailable(ctx context.Context, db storage.KeysDB) bool {
+// 	return db.Ping(ctx)
+// }
 
 func sendJSONResponse(
 	w http.ResponseWriter,

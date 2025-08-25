@@ -9,12 +9,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thek4n/paste.thek4n.ru/internal/apikeys"
-	"github.com/thek4n/paste.thek4n.ru/internal/config"
-	"github.com/thek4n/paste.thek4n.ru/internal/handlers"
-	"github.com/thek4n/paste.thek4n.ru/internal/storage"
-
 	flags "github.com/jessevdk/go-flags"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/redis/go-redis/v9"
+
+	"github.com/thek4n/paste.thek4n.ru/internal/domain/config"
+	"github.com/thek4n/paste.thek4n.ru/internal/domain/event"
+	"github.com/thek4n/paste.thek4n.ru/internal/domain/service"
+	"github.com/thek4n/paste.thek4n.ru/internal/infrastructure/eventhandler"
+	"github.com/thek4n/paste.thek4n.ru/internal/infrastructure/repository"
+	"github.com/thek4n/paste.thek4n.ru/internal/presentation/webhandlers"
+	"github.com/thek4n/paste.thek4n.ru/pkg/apikeys"
 )
 
 var version = "built-from-source"
@@ -35,11 +40,13 @@ type options struct {
 	EnableInteractiveDocs bool   `long:"docs" description:"Enable interactive documentation"`
 }
 
+const levelTrace = slog.Level(-8)
+
 var mux = http.NewServeMux()
 
 func (o *options) getLogLevel() slog.Level {
 	levels := map[string]slog.Level{
-		"TRACE": config.LevelTrace,
+		"TRACE": levelTrace,
 		"DEBUG": slog.LevelDebug,
 		"WARN":  slog.LevelWarn,
 		"INFO":  slog.LevelInfo,
@@ -79,34 +86,6 @@ func runServer(opts *options) {
 		opts.DBHost = redisHost
 	}
 
-	loggerdb := logger.With("dbhost", opts.DBHost, "dbport", opts.DBPort)
-	loggerdb0 := loggerdb.With("db", "0", "dbname", "keys")
-	loggerdb0.Debug("Connecting to database...")
-	db, err := storage.InitKeysStorageDB(opts.DBHost, opts.DBPort)
-	if err != nil {
-		loggerdb0.Error("failed to connect to database", "error", err)
-		os.Exit(1)
-	}
-	loggerdb0.Debug("Successfully connected to database")
-
-	loggerdb1 := loggerdb.With("db", "1", "dbname", "apikeys")
-	loggerdb1.Debug("Connecting to database...")
-	apikeysDb, err := storage.InitAPIKeysStorageDB(opts.DBHost, opts.DBPort)
-	if err != nil {
-		loggerdb1.Error("Failed to connect to database", "error", err)
-		os.Exit(1)
-	}
-	loggerdb1.Debug("Successfully connected to database")
-
-	loggerdb2 := loggerdb.With("db", "2", "dbname", "quota")
-	loggerdb2.Debug("Connecting to database...")
-	quotaDb, err := storage.InitQuotaStorageDB(opts.DBHost, opts.DBPort)
-	if err != nil {
-		loggerdb2.Error("Failed to connect to database", "error", err)
-		os.Exit(1)
-	}
-	loggerdb2.Debug("Successfully connected to database")
-
 	brokerConnectionURL := fmt.Sprintf(
 		"amqp://%s:%s@%s:%d/",
 		opts.BrokerUser,
@@ -117,27 +96,21 @@ func runServer(opts *options) {
 
 	loggerb := logger.With("broker_host", getBrokerHost(opts), "broker_port", opts.BrokerPort, "broker_user", opts.BrokerUser)
 	loggerb.Debug("Initializing amqp broker channel...")
-	broker, err := apikeys.InitBroker(brokerConnectionURL, loggerb)
+	brokerChannel, err := initBrokerChannel(brokerConnectionURL, loggerb)
 	if err != nil {
 		loggerb.Error("Failed to initialize amqp broker channel", "error", err)
 		os.Exit(1)
 	}
 	loggerb.Debug("Successfully initialized amqp broker channel")
 
-	handlers := handlers.Application{
-		Version:            version,
-		DB:                 *db,
-		APIKeysDB:          *apikeysDb,
-		QuotaDB:            *quotaDb,
-		Broker:             *broker,
-		Logger:             *logger,
-		HealthcheckEnabled: opts.EnableHealthcheck,
-	}
+	eventPublisher := event.NewPublisher()
+	rbmq := eventhandler.NewRabbitMQEventHandler(brokerChannel)
+	eventPublisher.Subscribe(rbmq, event.NewAPIKeyUsedEvent("", apikeys.UsageReason_CUSTOMKEY, ""))
 
-	addHandlers(mux, &handlers, opts)
+	handlers := handlersFactory(opts, logger, eventPublisher, config.DefaultQuotaConfig{})
+	addHandlers(mux, handlers, opts)
 
 	hostport := fmt.Sprintf("%s:%d", opts.Host, opts.Port)
-
 	server := &http.Server{
 		Addr:              hostport,
 		ReadHeaderTimeout: 3 * time.Second,
@@ -147,6 +120,55 @@ func runServer(opts *options) {
 	logger.Info("Server started", "host", opts.Host, "port", opts.Port)
 	err = server.ListenAndServe()
 	panic(err)
+}
+
+func handlersFactory(opts *options, logger *slog.Logger, eventPublisher *event.Publisher, quotaConfig config.QuotaConfig) *webhandlers.Handlers {
+	recordsClient := newRedisClient(opts, 0)
+	quotaClient := newRedisClient(opts, 1)
+	apikeyClient := newRedisClient(opts, 2)
+
+	cachingConfig := config.DefaultCachingConfig{}
+	cacheValidationConfig := config.DefaultCacheValidationConfig{}
+
+	redisRecordRepository := repository.NewRedisRecordRepository(
+		recordsClient,
+		cachingConfig,
+	)
+
+	return webhandlers.NewHandlers(
+		cacheValidationConfig,
+		version,
+		opts.EnableHealthcheck,
+		*logger,
+		service.NewGetService(
+			redisRecordRepository,
+		),
+		service.NewCacheService(
+			redisRecordRepository,
+			repository.NewRedisQuotaRepository(
+				quotaClient,
+			),
+			repository.NewRedisAPIKeyRORepository(
+				apikeyClient,
+			),
+			eventPublisher,
+			cacheValidationConfig,
+			quotaConfig,
+		),
+	)
+}
+
+func newRedisClient(opts *options, db int) *redis.Client {
+	return redis.NewClient(&redis.Options{
+		Addr:         fmt.Sprintf("%s:%d", opts.DBHost, opts.DBPort),
+		PoolSize:     100,
+		Password:     "",
+		Username:     "",
+		DB:           db,
+		MaxRetries:   5,
+		DialTimeout:  10 * time.Second,
+		WriteTimeout: 5 * time.Second,
+	})
 }
 
 func getBrokerHost(opts *options) string {
@@ -159,10 +181,10 @@ func getBrokerHost(opts *options) string {
 
 func newLoggerHandler(opts *options) (slog.Handler, error) {
 	levelNames := map[slog.Leveler]string{
-		config.LevelTrace: "TRACE",
+		levelTrace: "TRACE",
 	}
 
-	shouldAddSource := opts.getLogLevel() == config.LevelTrace
+	shouldAddSource := opts.getLogLevel() == levelTrace
 	handlerOptions := &slog.HandlerOptions{
 		Level:     opts.getLogLevel(),
 		AddSource: shouldAddSource,
@@ -190,7 +212,7 @@ func newLoggerHandler(opts *options) (slog.Handler, error) {
 	return nil, fmt.Errorf("invalid logger")
 }
 
-func addHandlers(mux *http.ServeMux, h *handlers.Application, opts *options) {
+func addHandlers(mux *http.ServeMux, h *webhandlers.Handlers, opts *options) {
 	mux.HandleFunc("GET /{key}/{$}", h.Get)
 	mux.HandleFunc("GET /{key}/clicks/{$}", h.GetClicks)
 	mux.HandleFunc("POST /{$}", h.Cache)
@@ -202,4 +224,37 @@ func addHandlers(mux *http.ServeMux, h *handlers.Application, opts *options) {
 		mux.HandleFunc("GET /docs/{$}", h.DocsHandler)
 		mux.Handle("/docs/static/", h.DocsStaticHandler())
 	}
+}
+
+func initBrokerChannel(connectURL string, logger *slog.Logger) (*amqp.Channel, error) {
+	logger.Debug("Creating amqp connection...")
+	rabbitmqcon, err := amqp.Dial(connectURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to rabbitmq: %w", err)
+	}
+	logger.Debug("Successfully created amqp connection")
+
+	logger.Debug("Creating amqp channel...")
+	ch, err := rabbitmqcon.Channel()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create a rabbitmq channel: %w", err)
+	}
+	logger.Debug("Successfully created amqp channel")
+
+	logger.Debug("Declaring amqp exchange...", "exchange_type", "topic", "exchange_name", "apikeysusage")
+	err = ch.ExchangeDeclare(
+		"apikeysusage",
+		"topic", // type
+		true,    // durable
+		false,   // auto-deleted
+		false,   // internal
+		false,   // no-wait
+		nil,     // arguments
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create a rabbitmq exchange '%s': %w", "apikeysusage", err)
+	}
+	logger.Debug("Successfully declared amqp exchange...")
+
+	return ch, nil
 }

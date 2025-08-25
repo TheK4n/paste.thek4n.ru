@@ -1,12 +1,10 @@
-package handlers
+package webhandlers
 
 import (
 	"embed"
 	"fmt"
 	"html/template"
 	"net/http"
-
-	"github.com/thek4n/paste.thek4n.ru/internal/config"
 )
 
 //go:embed docs/templates
@@ -71,19 +69,19 @@ type (
 )
 
 // DocsStaticHandler responses with static for interactive docs.
-func (app *Application) DocsStaticHandler() http.Handler {
+func (app *Handlers) DocsStaticHandler() http.Handler {
 	return http.FileServerFS(staticFS)
 }
 
 // DocsHandler renders HTML documentation for the API.
-func (app *Application) DocsHandler(w http.ResponseWriter, r *http.Request) {
+func (app *Handlers) DocsHandler(w http.ResponseWriter, r *http.Request) {
 	tmpl, err := template.ParseFS(templatesFS, "docs/templates/main.tmpl", "docs/templates/base.tmpl")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	doc := buildAPIDoc(r, app.Version, app.HealthcheckEnabled)
+	doc := app.buildAPIDoc(r, app.Version, app.HealthcheckEnabled)
 
 	if err := tmpl.Execute(w, doc); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -92,7 +90,7 @@ func (app *Application) DocsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // buildAPIDoc constructs the API documentation structure.
-func buildAPIDoc(r *http.Request, version string, healthcheckEnabled bool) apiDoc {
+func (app *Handlers) buildAPIDoc(r *http.Request, version string, healthcheckEnabled bool) apiDoc {
 	baseURL := fmt.Sprintf("%s://%s", detectProto(r), r.Host)
 
 	return apiDoc{
@@ -100,14 +98,14 @@ func buildAPIDoc(r *http.Request, version string, healthcheckEnabled bool) apiDo
 		Description: "This API provides access to all the awesome features of our service.",
 		BaseURL:     baseURL,
 		Version:     version,
-		Sections:    buildSections(baseURL, healthcheckEnabled, version),
+		Sections:    app.buildSections(baseURL, healthcheckEnabled, version),
 	}
 }
 
 // buildSections constructs all documentation sections.
-func buildSections(baseURL string, healthcheckEnabled bool, version string) []section {
+func (app *Handlers) buildSections(baseURL string, healthcheckEnabled bool, version string) []section {
 	sections := []section{
-		buildMainSection(baseURL),
+		app.buildMainSection(baseURL),
 	}
 
 	if healthcheckEnabled {
@@ -118,7 +116,7 @@ func buildSections(baseURL string, healthcheckEnabled bool, version string) []se
 }
 
 // buildMainSection constructs the main API operations section.
-func buildMainSection(baseURL string) section {
+func (app *Handlers) buildMainSection(baseURL string) section {
 	return section{
 		Name:        "Main",
 		Description: "Main operations",
@@ -129,7 +127,7 @@ func buildMainSection(baseURL string) section {
 				Path:            "/",
 				Description:     "Save body",
 				ResponseExample: fmt.Sprintf("%s/eoVbybwLnlc49q/", baseURL),
-				Parameters:      getCreateRecordParameters(),
+				Parameters:      app.getCreateRecordParameters(),
 			},
 			{
 				ID:              "get-record",
@@ -173,7 +171,7 @@ func buildHealthcheckSection(version string) section {
 }
 
 // getCreateRecordParameters returns parameters for the create record endpoint.
-func getCreateRecordParameters() []parameter {
+func (app *Handlers) getCreateRecordParameters() []parameter {
 	return []parameter{
 		{
 			Name:        "ttl",
@@ -181,7 +179,7 @@ func getCreateRecordParameters() []parameter {
 			In:          inQuery,
 			Required:    false,
 			Description: "TTL - time to live of created key. Examples 3h, 30m, 60s. Authorized apikeys can set persist key by providing ttl parameter as 0",
-			Default:     config.DefaultTTL.String(),
+			Default:     app.Config.DefaultTTL().String(),
 		},
 		{
 			Name:        "disposable",
@@ -196,8 +194,8 @@ func getCreateRecordParameters() []parameter {
 			Type:        "int",
 			In:          inQuery,
 			Required:    false,
-			Description: fmt.Sprintf("Length of key to generate. max=%d, unpriveleged min=%d, privelegen min=%d", config.MaxKeyLength, config.UnprivelegedMinKeyLength, config.PrivelegedMinKeyLength),
-			Default:     fmt.Sprintf("%d", config.DefaultKeyLength),
+			Description: fmt.Sprintf("Length of key to generate. max=%d, unprivileged min=%d, privilegen min=%d", app.Config.MaxKeyLength(), app.Config.UnprivilegedMinKeyLength(), app.Config.PrivilegedMinKeyLength()),
+			Default:     fmt.Sprintf("%d", app.Config.DefaultKeyLength()),
 		},
 		{
 			Name:        "url",

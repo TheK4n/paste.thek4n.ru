@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/thek4n/paste.thek4n.ru/internal/config"
+	"github.com/thek4n/paste.thek4n.ru/internal/domain/config"
 )
 
 func TestCache(t *testing.T) {
@@ -25,9 +25,7 @@ func TestCache(t *testing.T) {
 		resp, err := ts.post("/", "test body")
 		require.NoError(t, err)
 
-		assert.Equal(t,
-			http.StatusOK, resp.StatusCode,
-		)
+		assert.Equal(t, http.StatusCreated, resp.StatusCode)
 	})
 
 	t.Run("cache with expiration time removes key after this time", func(t *testing.T) {
@@ -40,11 +38,22 @@ func TestCache(t *testing.T) {
 		expectedBody := "body"
 		resp, err := ts.post("/?ttl=3s", expectedBody)
 		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, resp.StatusCode)
 		gotUrl := mustReadBody(t, resp.Body)
 
 		resp, err = http.Get(gotUrl)
 		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t,
+			http.StatusOK, resp.StatusCode,
+			"shoudn`t be removed yet",
+		)
+
+		resp, err = http.Get(gotUrl)
+		require.NoError(t, err)
+		require.Equal(t,
+			http.StatusOK, resp.StatusCode,
+			"shoudn`t be removed yet",
+		)
 
 		time.Sleep(3500 * time.Millisecond)
 
@@ -67,10 +76,10 @@ func TestCache(t *testing.T) {
 		)
 	})
 
-	t.Run("unpriveleged cache with big body returns 413", func(t *testing.T) {
+	t.Run("unprivileged cache with big body returns 413", func(t *testing.T) {
 		t.Parallel()
 
-		largeBody := bytes.Repeat([]byte("a"), int(config.UnprevelegedMaxBodySize+100))
+		largeBody := bytes.Repeat([]byte("a"), int(config.DefaultCacheValidationConfig{}.UnprivilegedMaxBodySize()+100))
 
 		resp, err := ts.post("/", string(largeBody))
 		require.NoError(t, err)
@@ -85,12 +94,13 @@ func TestCache(t *testing.T) {
 func TestGet(t *testing.T) {
 	ts := setupTestServer(t)
 
-	t.Run("get after cache returns correct body", func(t *testing.T) {
+	t.Run("get returns correct body", func(t *testing.T) {
 		t.Parallel()
 
 		expectedBody := "test body"
 		postResp, err := ts.post("/", expectedBody)
 		require.NoError(t, err)
+		require.Equal(t, http.StatusCreated, postResp.StatusCode)
 		gotURL := mustReadBody(t, postResp.Body)
 
 		getResp, err := http.Get(gotURL)
