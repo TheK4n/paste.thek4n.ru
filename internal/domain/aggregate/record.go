@@ -69,7 +69,7 @@ func (r Record) DisposableCounterEternal() bool {
 // GetBody checks is record counter exhausted, is record expired.
 // Then decreases disposable counter, increases clicks counter and returns body.
 func (r *Record) GetBody() ([]byte, error) {
-	if r.counterExhausted() {
+	if r.CounterExhausted() {
 		return nil, domainerrors.ErrRecordCounterExhausted
 	}
 
@@ -103,7 +103,8 @@ func (r *Record) expired() bool {
 	return r.expirationDate.Expired()
 }
 
-func (r *Record) counterExhausted() bool {
+// CounterExhausted returns true if disposable counter equal or less then 0.
+func (r *Record) CounterExhausted() bool {
 	return r.disposableCounter.Exhausted()
 }
 

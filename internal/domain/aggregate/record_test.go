@@ -178,7 +178,7 @@ func TestRecord_counterExhausted(t *testing.T) {
 		now := time.Now().Add(1 * time.Hour)
 		record, _ := NewRecord("key10", now, 1, false, 0, []byte("body"), false)
 
-		assert.False(t, record.counterExhausted())
+		assert.False(t, record.CounterExhausted())
 	})
 
 	t.Run("counter exhausted returns true when initial counter == 0", func(t *testing.T) {
@@ -187,6 +187,6 @@ func TestRecord_counterExhausted(t *testing.T) {
 		now := time.Now().Add(1 * time.Hour)
 		record, _ := NewRecord("key11", now, 0, false, 0, []byte("body"), false)
 
-		assert.True(t, record.counterExhausted())
+		assert.True(t, record.CounterExhausted())
 	})
 }

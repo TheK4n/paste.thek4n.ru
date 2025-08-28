@@ -147,6 +147,7 @@ func handlersFactory(opts *options, logger *slog.Logger, eventPublisher *event.P
 			redisRecordRepository,
 			repository.NewRedisQuotaRepository(
 				quotaClient,
+				quotaConfig,
 			),
 			repository.NewRedisAPIKeyRORepository(
 				apikeyClient,

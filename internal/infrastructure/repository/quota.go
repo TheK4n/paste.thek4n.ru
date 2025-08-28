@@ -8,6 +8,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/aggregate"
+	"github.com/thek4n/paste.thek4n.ru/internal/domain/config"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/domainerrors"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/objectvalue"
 )
@@ -19,12 +20,14 @@ type redisQuotaRecord struct {
 // RedisQuotaRepository implementation of domain interface of quota repository.
 type RedisQuotaRepository struct {
 	client *redis.Client
+	config config.QuotaConfig
 }
 
 // NewRedisQuotaRepository constructor.
-func NewRedisQuotaRepository(c *redis.Client) *RedisQuotaRepository {
+func NewRedisQuotaRepository(c *redis.Client, cfg config.QuotaConfig) *RedisQuotaRepository {
 	return &RedisQuotaRepository{
 		client: c,
+		config: cfg,
 	}
 }
 
@@ -56,13 +59,15 @@ func (r *RedisQuotaRepository) GetByID(ctx context.Context, id objectvalue.Quota
 
 // SetByID write quota to db.
 func (r *RedisQuotaRepository) SetByID(ctx context.Context, id objectvalue.QuotaSourceIP, q aggregate.Quota) error {
-	record := redisQuotaRecord{
-		Value: q.Value(),
-	}
-
-	err := r.client.HSet(ctx, string(id), record).Err()
+	// lua script because we need atomic execution
+	script := `
+	   redis.call("HSET", KEYS[1], ARGV[1], ARGV[2])
+	   redis.call("EXPIRE", KEYS[1], ARGV[3])
+	   return 1
+   `
+	err := r.client.Eval(ctx, script, []string{string(id)}, "value", q.Value(), int(r.config.QuotaResetPeriod().Seconds())).Err()
 	if err != nil {
-		return fmt.Errorf("fail to write quota record: %w", err)
+		return fmt.Errorf("fail to set new quota key: %w", err)
 	}
 
 	return nil
