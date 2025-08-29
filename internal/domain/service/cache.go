@@ -95,9 +95,10 @@ func (s *CacheService) Serve(params objectvalue.CacheRequestParams) (objectvalue
 }
 
 func (s *CacheService) servePrivileged(ctx context.Context, params objectvalue.CacheRequestParams) (objectvalue.RecordKey, error) {
+	expirationDate := objectvalue.NewExpirationDateFromTTL(params.TTL)
 	newRecord, err := aggregate.NewRecord(
 		"",
-		time.Now().Add(params.TTL),
+		expirationDate,
 		params.Disposable,
 		params.Disposable == 0,
 		0,
@@ -151,9 +152,10 @@ func (s *CacheService) getRecordKey(ctx context.Context, params objectvalue.Cach
 }
 
 func (s *CacheService) serveUnprivileged(ctx context.Context, params objectvalue.CacheRequestParams) (objectvalue.RecordKey, error) {
+	expirationDate := objectvalue.NewExpirationDateFromTTL(params.TTL)
 	newRecord, err := aggregate.NewRecord(
 		"",
-		time.Now().Add(params.TTL),
+		expirationDate,
 		params.Disposable,
 		params.Disposable == 0,
 		0,

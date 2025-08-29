@@ -13,21 +13,39 @@ import (
 type CacheRequestID uuid.UUID
 
 // ExpirationDate timer to expirate record.
-type ExpirationDate time.Time
+type ExpirationDate struct {
+	time.Time
+	eternal bool
+}
 
 // NewExpirationDateFromTTL constructor.
 func NewExpirationDateFromTTL(t time.Duration) ExpirationDate {
-	return ExpirationDate(time.Now().Add(t))
+	eternal := t == 0
+	return ExpirationDate{
+		Time:    time.Now().Add(t),
+		eternal: eternal,
+	}
 }
 
 // Expired returns is date after then now.
 func (e ExpirationDate) Expired() bool {
-	return time.Now().After(time.Time(e))
+	if e.eternal {
+		return false
+	}
+	return time.Now().After(e.Time)
+}
+
+// Eternal returns is expiration date eternal.
+func (e ExpirationDate) Eternal() bool {
+	return e.eternal
 }
 
 // Until returns duration until e.
 func (e ExpirationDate) Until() time.Duration {
-	return time.Until(time.Time(e))
+	if e.eternal {
+		return 0
+	}
+	return time.Until(e.Time)
 }
 
 // DisposableCounter counter for record.

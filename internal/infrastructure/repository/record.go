@@ -77,7 +77,7 @@ func (r *RedisRecordRepository) GetByKey(ctx context.Context, key objectvalue.Re
 
 	res, err := aggregate.NewRecord(
 		string(key),
-		time.Time(objectvalue.NewExpirationDateFromTTL(record.TTL)),
+		objectvalue.NewExpirationDateFromTTL(record.TTL),
 		record.Countdown,
 		record.Eternal,
 		record.Clicks,
@@ -121,8 +121,8 @@ func (r *RedisRecordRepository) SetByKey(ctx context.Context, key objectvalue.Re
 		return fmt.Errorf("failed to set key: %w", err)
 	}
 
-	ttl := record.TTL()
-	if ttl != time.Duration(0) {
+	if !record.ExpirationDateEternal() {
+		ttl := record.TTL()
 		err := r.client.Expire(ctx, string(key), ttl).Err()
 		if err != nil {
 			return fmt.Errorf("failed to set expire for key '%s': %w", key, err)

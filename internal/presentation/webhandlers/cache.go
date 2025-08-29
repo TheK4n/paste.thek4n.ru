@@ -134,27 +134,27 @@ func (app *Handlers) parseAndValidateRequestParams(urlQuery url.Values) (cacheRe
 
 	p.TTL, err = app.getTTL(urlQuery)
 	if err != nil {
-		return p, &cacheError{Message: "Invalid 'ttl' parameter", StatusCode: http.StatusUnprocessableEntity}
+		return p, &cacheError{Message: "Invalid 'ttl' parameter", StatusCode: http.StatusBadRequest}
 	}
 
 	p.Length, err = app.getLength(urlQuery)
 	if err != nil {
-		return p, &cacheError{Message: "Invalid 'len' parameter", StatusCode: http.StatusUnprocessableEntity}
+		return p, &cacheError{Message: "Invalid 'len' parameter", StatusCode: http.StatusBadRequest}
 	}
 
 	p.Disposable, err = getDisposable(urlQuery)
 	if err != nil {
-		return p, &cacheError{Message: "Invalid 'disposable' parameter", StatusCode: http.StatusUnprocessableEntity}
+		return p, &cacheError{Message: "Invalid 'disposable' parameter", StatusCode: http.StatusBadRequest}
 	}
 
 	p.IsURL, err = getURL(urlQuery)
 	if err != nil {
-		return p, &cacheError{Message: "Invalid 'url' parameter", StatusCode: http.StatusUnprocessableEntity}
+		return p, &cacheError{Message: "Invalid 'url' parameter", StatusCode: http.StatusBadRequest}
 	}
 
 	p.RequestedKey, err = app.getRequestedKey(urlQuery)
 	if err != nil {
-		return p, &cacheError{Message: err.Error(), StatusCode: http.StatusUnprocessableEntity}
+		return p, &cacheError{Message: err.Error(), StatusCode: http.StatusBadRequest}
 	}
 
 	p.APIKey = urlQuery.Get("apikey")
@@ -207,8 +207,14 @@ func handleCacheError(w http.ResponseWriter, err error, logger *slog.Logger) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
+
 	if err == domainerrors.ErrRequestedKeyExists {
 		w.WriteHeader(http.StatusConflict)
+		return
+	}
+
+	if err == domainerrors.ErrInvalidTTL {
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
@@ -248,7 +254,7 @@ func (app *Handlers) getTTL(v url.Values) (time.Duration, error) {
 		return 0, fmt.Errorf("fail to parse duration: %w", err)
 	}
 
-	if ttl < app.Config.MinTTL() {
+	if ttl != 0 && ttl < app.Config.MinTTL() {
 		return 0, fmt.Errorf("TTL can`t be less then %s", app.Config.MinTTL())
 	}
 

@@ -22,7 +22,7 @@ type Record struct {
 // NewRecord creates Record with initialized params.
 func NewRecord(
 	key string,
-	expirationDate time.Time,
+	expirationDate objectvalue.ExpirationDate,
 	disposableCounter uint8,
 	eternal bool,
 	clicks uint32,
@@ -38,7 +38,7 @@ func NewRecord(
 
 	return Record{
 		key:               objectvalue.RecordKey(key),
-		expirationDate:    objectvalue.ExpirationDate(expirationDate),
+		expirationDate:    expirationDate,
 		disposableCounter: c,
 		body:              body,
 		clicks:            cc,
@@ -64,6 +64,11 @@ func (r Record) DisposableCounter() int32 {
 // DisposableCounterEternal returns is disposableCounter is eternal.
 func (r Record) DisposableCounterEternal() bool {
 	return r.disposableCounter.Eternal()
+}
+
+// ExpirationDateEternal returns is expirationDate is eternal.
+func (r Record) ExpirationDateEternal() bool {
+	return r.expirationDate.Eternal()
 }
 
 // GetBody checks is record counter exhausted, is record expired.
