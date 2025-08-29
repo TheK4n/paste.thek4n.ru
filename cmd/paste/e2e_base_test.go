@@ -69,24 +69,7 @@ func getKeyLength(t *testing.T, url string) int {
 func setupTestServer(t *testing.T) *testServer {
 	t.Helper()
 
-	// db, err := storage.InitKeysStorageDB(redisHost, redisPort)
-	// require.NoError(t, err, "failed to connect to keys storage")
-	//
-	// apikeysDb, err := storage.InitAPIKeysStorageDB(redisHost, redisPort)
-	// require.NoError(t, err, "failed to connect to api keys storage")
-	//
-	// quotaDb, err := storage.InitQuotaStorageDB(redisHost, redisPort)
-	// require.NoError(t, err, "failed to connect to quota storage")
-
-	// brokerConnectionURL := fmt.Sprintf(
-	// 	"amqp://%s:%s@%s:%d/",
-	// 	"guest",
-	// 	"guest",
-	// 	getBrokerHost_(),
-	// 	5672,
-	// )
-
-	opts := options{
+	opts := pasteOptions{
 		EnableHealthcheck: true,
 		DBHost:            getRedisHost(),
 		DBPort:            6379,

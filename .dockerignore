@@ -10,3 +10,4 @@ docker-compose.yaml
 .golangci.yml
 tools/
 CONTRIBUTING.md
+node_modules/

@@ -10,6 +10,7 @@ import (
 // APIKeyRORepository readonly interface for apikeys.
 type APIKeyRORepository interface {
 	GetByID(context.Context, string) (aggregate.APIKey, error)
+	GetAll(context.Context) ([]aggregate.APIKey, error)
 }
 
 // APIKeyWORepository write interface for apikeys.

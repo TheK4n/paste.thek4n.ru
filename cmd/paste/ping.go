@@ -11,7 +11,7 @@ import (
 	flags "github.com/jessevdk/go-flags"
 )
 
-type options struct {
+type pingOptions struct {
 	Method string `long:"method" choice:"simple" choice:"200" choice:"json" default:"simple"`
 }
 
@@ -21,9 +21,10 @@ type healthcheckResponse struct {
 	Msg          string `json:"msg"`
 }
 
-func main() {
-	var opts options
-	args, err := flags.Parse(&opts)
+func pingCommand(args []string) {
+	var opts pingOptions
+
+	args, err := flags.NewParser(&opts, flags.Default).ParseArgs(args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Parse params error: %s\n", err)
 		os.Exit(2)

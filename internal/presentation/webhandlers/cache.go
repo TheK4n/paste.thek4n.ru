@@ -114,11 +114,6 @@ func (app *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// if req.APIKeyAuthorized {
-	// 	logger = logger.With("authorized", true, "apikey_id", req.APIKey.ID)
-	// 	logger.Debug("Authorize apikey")
-	// }
-
 	if err := sendSuccessResponse(w, r, string(recordkey)); err != nil {
 		handleCacheError(w, err, logger)
 		return
@@ -167,25 +162,6 @@ func (app *Handlers) parseAndValidateRequestParams(urlQuery url.Values) (cacheRe
 	return p, nil
 }
 
-// func authorizeAPIKey(db storage.APIKeysDB, apikey string, logger *slog.Logger) (bool, error) {
-// 	apikeyRecord, err := getAPIKeyRecord(db, apikey)
-// 	if errors.Is(err, storage.ErrKeyNotFound) {
-// 		logger.Debug("Detect usage not existing apikey", "answer_code", http.StatusUnauthorized)
-// 		return false, &cacheError{Message: "Cannot authorize provided apikey", StatusCode: http.StatusUnauthorized}
-// 	}
-// 	if err != nil {
-// 		logger.Error("Fail to check apikey", "error", err, "answer_code", http.StatusInternalServerError)
-// 		return false, &cacheError{Message: "Failed to check apikey", StatusCode: http.StatusInternalServerError, Err: err}
-// 	}
-//
-// 	if !apikeyRecord.Valid {
-// 		logger.Warn("Detect usage revoked apikey", "answer_code", http.StatusUnauthorized, "apikey_id", apikeyRecord.ID)
-// 		return false, &cacheError{Message: "Cannot authorize provided apikey", StatusCode: http.StatusUnauthorized}
-// 	}
-//
-// 	return true, nil
-// }
-
 func readRequestBody(r *http.Request) ([]byte, error) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil && err != io.EOF {
@@ -198,98 +174,6 @@ func readRequestBody(r *http.Request) ([]byte, error) {
 
 	return body, nil
 }
-
-// func validateCacheRequest(req *cacheRequest) error {
-// 	if req.Params.TTL == 0 && !req.APIKeyAuthorized {
-// 		return &cacheError{
-// 			Message:    "Unauthorized attempt to set persist key",
-// 			StatusCode: http.StatusUnauthorized,
-// 		}
-// 	}
-//
-// 	if req.Params.Length < config.UnprivilegedMinKeyLength && !req.APIKeyAuthorized {
-// 		return &cacheError{
-// 			Message:    "Unauthorized attempt to set short key",
-// 			StatusCode: http.StatusUnauthorized,
-// 		}
-// 	}
-//
-// 	if req.Params.RequestedKey != "" && !req.APIKeyAuthorized {
-// 		return &cacheError{
-// 			Message:    "Unauthorized attempt to set custom key",
-// 			StatusCode: http.StatusUnauthorized,
-// 		}
-// 	}
-//
-// 	if req.Params.IsURL {
-// 		req.Body = []byte(strings.TrimSpace(string(req.Body)))
-// 		if !validateURL(string(req.Body)) {
-// 			return &cacheError{
-// 				Message:    "Invalid 'url' parameter",
-// 				StatusCode: http.StatusUnprocessableEntity,
-// 			}
-// 		}
-// 	}
-//
-// 	return nil
-// }
-
-// logAPIKeyUsage логирует использование API ключа.
-// func (app *Handlers) logAPIKeyUsage(req *cacheRequest, logger *slog.Logger) {
-// 	var reason apikeysm.UsageReason
-// 	switch {
-// 	case req.Params.TTL == 0:
-// 		reason = apikeysm.UsageReason_PERSISTKEY
-// 	case req.Params.Length < config.UnprivilegedMinKeyLength:
-// 		reason = apikeysm.UsageReason_CUSTOMKEYLEN
-// 	case req.Params.RequestedKey != "":
-// 		reason = apikeysm.UsageReason_CUSTOMKEY
-// 	case len(req.Body) > int(config.UnprevelegedMaxBodySize):
-// 		reason = apikeysm.UsageReason_LARGEBODY
-// 	default:
-// 		return
-// 	}
-//
-// 	if err := app.Broker.SendAPIKeyUsageLog(req.APIKey.ID, reason, req.SourceIP); err != nil {
-// 		logger.Warn("Fail to publish to broker", "error", err)
-// 	}
-// 	logger.Debug("Sent apikey usage reason to broker", "reason", reason)
-// }
-
-// func saveKey(db storage.KeysDB, req *cacheRequest) (string, error) {
-// 	record := storage.KeyRecord{
-// 		Body:       req.Body,
-// 		Disposable: req.Params.Disposable != 0,
-// 		Countdown:  req.Params.Disposable,
-// 		URL:        req.Params.IsURL,
-// 		Clicks:     0,
-// 	}
-//
-// 	var key string
-// 	var err error
-//
-// 	if req.Params.RequestedKey == "" {
-// 		key, err = keys.CacheGeneratedKey(db, 4*time.Second, req.Params.TTL, req.Params.Length, record)
-// 	} else {
-// 		key, err = keys.CacheRequestedKey(db, 4*time.Second, req.Params.RequestedKey, req.Params.TTL, record)
-// 		if errors.Is(err, keys.ErrKeyAlreadyTaken) {
-// 			return "", &cacheError{
-// 				Message:    "Key already taken",
-// 				StatusCode: http.StatusConflict,
-// 			}
-// 		}
-// 	}
-//
-// 	if err != nil {
-// 		return "", &cacheError{
-// 			Message:    "Failed to set key",
-// 			StatusCode: http.StatusInternalServerError,
-// 			Err:        err,
-// 		}
-// 	}
-//
-// 	return key, nil
-// }
 
 func sendSuccessResponse(w http.ResponseWriter, r *http.Request, key string) error {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -310,7 +194,21 @@ func sendSuccessResponse(w http.ResponseWriter, r *http.Request, key string) err
 
 func handleCacheError(w http.ResponseWriter, err error, logger *slog.Logger) {
 	if err == domainerrors.ErrBodyTooLarge {
-		w.WriteHeader(413)
+		w.WriteHeader(http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	if err == domainerrors.ErrAPIKeyNotFound {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if err == domainerrors.ErrAPIKeyInvalid {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	if err == domainerrors.ErrRequestedKeyExists {
+		w.WriteHeader(http.StatusConflict)
 		return
 	}
 

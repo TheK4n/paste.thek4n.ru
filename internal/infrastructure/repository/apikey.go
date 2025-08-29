@@ -54,6 +54,43 @@ func (r *RedisAPIKeyRORepository) GetByID(ctx context.Context, key string) (aggr
 	return aggregate.NewAPIKey(rid, key, record.Valid), nil
 }
 
+// GetAll fetch all APIKeys from redis db.
+func (r *RedisAPIKeyRORepository) GetAll(ctx context.Context) ([]aggregate.APIKey, error) {
+	var apikeys []aggregate.APIKey
+
+	var cursor uint64
+	for {
+		var keys []string
+		var err error
+		keys, cursor, err = r.client.Scan(ctx, cursor, "*", 100).Result()
+		if err != nil {
+			return nil, fmt.Errorf("fail to scan for apikeys: %w", err)
+		}
+
+		for _, key := range keys {
+			var record redisAPIKeyRecord
+			err := r.client.HGetAll(ctx, key).Scan(&record)
+			if err != nil {
+				return nil, fmt.Errorf("fail to scan apikey record: %w", err)
+			}
+
+			rid, err := objectvalue.NewAPIKeyID(record.ID)
+			if err != nil {
+				return nil, fmt.Errorf("fail to parse apikey record id for key: %w", err)
+			}
+			rapikey := aggregate.NewAPIKey(rid, key, record.Valid)
+
+			apikeys = append(apikeys, rapikey)
+		}
+
+		if cursor == 0 {
+			break
+		}
+	}
+
+	return apikeys, nil
+}
+
 func (r *RedisAPIKeyRORepository) exists(ctx context.Context, key string) (bool, error) {
 	keysNumber, err := r.client.Exists(ctx, key).Uint64()
 	if err != nil {
@@ -84,7 +121,17 @@ func (r *RedisAPIKeyWORepository) SetByID(ctx context.Context, key string, apike
 
 	err := r.client.HSet(ctx, key, record).Err()
 	if err != nil {
-		return fmt.Errorf("failure set record for key '%s': %w", key, err)
+		return fmt.Errorf("failure set apikey for key '%s': %w", key, err)
+	}
+
+	return nil
+}
+
+// RemoveByID write apikey to redis.
+func (r *RedisAPIKeyWORepository) RemoveByID(ctx context.Context, key string) error {
+	err := r.client.Del(ctx, key).Err()
+	if err != nil {
+		return fmt.Errorf("failure remove apikey by key '%s': %w", key, err)
 	}
 
 	return nil

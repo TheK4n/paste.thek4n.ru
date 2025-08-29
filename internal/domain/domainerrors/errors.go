@@ -40,3 +40,6 @@ var ErrAPIKeyNotFound = errors.New("apikey not found")
 
 // ErrQuotaNotFound error type to point that quota not found.
 var ErrQuotaNotFound = errors.New("quota not found")
+
+// ErrAPIKeyInvalid error type to point that apikey is invalid.
+var ErrAPIKeyInvalid = errors.New("invalid apikey")
