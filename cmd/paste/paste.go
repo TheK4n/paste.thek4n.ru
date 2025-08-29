@@ -91,7 +91,19 @@ func runServer(args []string) {
 	rbmq := eventhandler.NewRabbitMQEventHandler(brokerChannel)
 	eventPublisher.Subscribe(rbmq, event.NewAPIKeyUsedEvent("", apikeys.UsageReason_CUSTOMKEY, ""))
 
-	handlers := handlersFactory(&opts, logger, eventPublisher, config.DefaultQuotaConfig{})
+	recordsClient := newRedisClient(&opts, 0)
+	quotaClient := newRedisClient(&opts, 1)
+	apikeyClient := newRedisClient(&opts, 2)
+
+	handlers := handlersFactory(
+		recordsClient,
+		quotaClient,
+		apikeyClient,
+		&opts,
+		logger,
+		eventPublisher,
+		config.DefaultQuotaConfig{},
+	)
 	addHandlers(mux, handlers, &opts)
 
 	hostport := fmt.Sprintf("%s:%d", opts.Host, opts.Port)
@@ -118,11 +130,15 @@ func (o *pasteOptions) getLogLevel() slog.Level {
 	return levels[strings.ToUpper(o.LogLevel)]
 }
 
-func handlersFactory(opts *pasteOptions, logger *slog.Logger, eventPublisher *event.Publisher, quotaConfig config.QuotaConfig) *webhandlers.Handlers {
-	recordsClient := newRedisClient(opts, 0)
-	quotaClient := newRedisClient(opts, 1)
-	apikeyClient := newRedisClient(opts, 2)
-
+func handlersFactory(
+	recordsClient *redis.Client,
+	quotaClient *redis.Client,
+	apikeyClient *redis.Client,
+	opts *pasteOptions,
+	logger *slog.Logger,
+	eventPublisher *event.Publisher,
+	quotaConfig config.QuotaConfig,
+) *webhandlers.Handlers {
 	cachingConfig := config.DefaultCachingConfig{}
 	cacheValidationConfig := config.DefaultCacheValidationConfig{}
 

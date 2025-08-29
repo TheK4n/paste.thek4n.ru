@@ -84,13 +84,13 @@ curl -iL "${URL}"  # 404 Not found
 ```
 
 
-Put text with custom key length in range from 14 to 20
+Put text with custom key length in range from 8 to 20
 ```sh
 curl -d 'https://example.com/' 'localhost:8081/?url=true&len=20'
 # http://localhost:8081/8fYfLk34Y1H3UQ213as1/
 ```
 
-Range from 3 to 13 allowed only for authorized apikeys
+Range from 3 to 7 allowed only for authorized apikeys
 ```sh
 curl -d 'https://example.com/' 'localhost:8081/?url=true&len=3&apikey=apikey'
 # http://localhost:8081/Dav/

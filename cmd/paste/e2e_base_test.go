@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"math"
@@ -75,7 +76,23 @@ func setupTestServer(t *testing.T) *testServer {
 		DBPort:            6379,
 	}
 
-	handlers := handlersFactory(&opts, slog.Default(), event.NewPublisher(), TestQuotaConfig{})
+	recordsClient := newRedisClient(&opts, 0)
+	quotaClient := newRedisClient(&opts, 1)
+	apikeyClient := newRedisClient(&opts, 2)
+
+	recordsClient.FlushDB(context.Background())
+	quotaClient.FlushDB(context.Background())
+	apikeyClient.FlushDB(context.Background())
+
+	handlers := handlersFactory(
+		recordsClient,
+		quotaClient,
+		apikeyClient,
+		&opts,
+		slog.Default(),
+		event.NewPublisher(),
+		TestQuotaConfig{},
+	)
 
 	mux := http.NewServeMux()
 	addHandlers(mux, handlers, &opts)
