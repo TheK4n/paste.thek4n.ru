@@ -9,8 +9,8 @@ import (
 	flags "github.com/jessevdk/go-flags"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/thek4n/paste.thek4n.ru/internal/application/service"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/aggregate"
-	"github.com/thek4n/paste.thek4n.ru/internal/domain/service"
 	"github.com/thek4n/paste.thek4n.ru/internal/infrastructure/repository"
 )
 

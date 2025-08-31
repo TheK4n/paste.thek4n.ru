@@ -12,9 +12,9 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/thek4n/paste.thek4n.ru/internal/application/service"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/config"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/event"
-	"github.com/thek4n/paste.thek4n.ru/internal/domain/service"
 	"github.com/thek4n/paste.thek4n.ru/internal/infrastructure/eventhandler"
 	"github.com/thek4n/paste.thek4n.ru/internal/infrastructure/repository"
 	"github.com/thek4n/paste.thek4n.ru/internal/presentation/webhandlers"

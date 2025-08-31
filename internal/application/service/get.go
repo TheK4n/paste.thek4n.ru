@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/thek4n/paste.thek4n.ru/internal/application/repository"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/aggregate"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/objectvalue"
-	"github.com/thek4n/paste.thek4n.ru/internal/domain/repository"
 )
 
-// GetService domain service for getting records.
+// GetService application service for getting records.
 type GetService struct {
 	recordRepository repository.RecordRepository
 }
@@ -54,7 +54,7 @@ func (h *GetService) GetBody(key objectvalue.RecordKey) (GetBodyAnswer, error) {
 	}, nil
 }
 
-// GetClicks returns GetBodyAnswer. If not exists returns ErrRecordNotFound as error.
+// GetClicks returns clicks number. If not exists returns ErrRecordNotFound as error.
 func (h *GetService) GetClicks(key objectvalue.RecordKey) (uint32, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()

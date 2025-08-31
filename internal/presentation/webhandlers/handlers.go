@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/thek4n/paste.thek4n.ru/internal/application/service"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/config"
-	"github.com/thek4n/paste.thek4n.ru/internal/domain/service"
 )
 
 // Handlers struct contains repositories and provides handlers.

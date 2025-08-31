@@ -1,4 +1,4 @@
-// Package service contains domain services.
+// Package service contains application services.
 package service
 
 import (
@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/thek4n/paste.thek4n.ru/internal/application/repository"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/aggregate"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/objectvalue"
-	"github.com/thek4n/paste.thek4n.ru/internal/domain/repository"
 )
 
 // APIKeysService provides methods to work with apikeys.

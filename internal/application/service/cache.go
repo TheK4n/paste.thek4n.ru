@@ -7,17 +7,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/thek4n/paste.thek4n.ru/internal/application/repository"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/aggregate"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/config"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/domainerrors"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/event"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/logger"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/objectvalue"
-	"github.com/thek4n/paste.thek4n.ru/internal/domain/repository"
 	"github.com/thek4n/paste.thek4n.ru/pkg/apikeys"
 )
 
-// CacheService domain service.
+// CacheService application service.
 type CacheService struct {
 	recordRepository repository.RecordRepository
 	quotaRepository  repository.QuotaRepository
@@ -186,11 +186,13 @@ func (s *CacheService) serveUnprivileged(ctx context.Context, params objectvalue
 
 func (s *CacheService) manageQuota(ctx context.Context, sourceIP objectvalue.QuotaSourceIP) error {
 	quota, err := s.quotaRepository.GetByID(ctx, sourceIP)
-	if err != nil && errors.Is(err, domainerrors.ErrQuotaNotFound) {
-		quota = aggregate.NewQuota(sourceIP, s.quotaConfig.Quota())
-	} else if err != nil {
-		s.logger.Error("Fail to get quota", "error", err.Error(), "source_ip", string(sourceIP))
-		return fmt.Errorf("fail to get quota: %w", err)
+	if err != nil {
+		if errors.Is(err, domainerrors.ErrQuotaNotFound) {
+			quota = aggregate.NewQuota(sourceIP, s.quotaConfig.Quota())
+		} else {
+			s.logger.Error("Fail to get quota", "error", err.Error(), "source_ip", string(sourceIP))
+			return fmt.Errorf("fail to get quota: %w", err)
+		}
 	}
 
 	quota.Sub()
