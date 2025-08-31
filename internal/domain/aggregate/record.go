@@ -2,7 +2,6 @@
 package aggregate
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/domainerrors"
@@ -13,8 +12,8 @@ import (
 type Record struct {
 	key               objectvalue.RecordKey
 	expirationDate    objectvalue.ExpirationDate
-	disposableCounter *objectvalue.DisposableCounter
-	clicks            *objectvalue.ClicksCounter
+	disposableCounter objectvalue.DisposableCounter
+	clicks            objectvalue.ClicksCounter
 	body              []byte
 	url               bool
 }
@@ -28,12 +27,8 @@ func NewRecord(
 	clicks uint32,
 	body []byte,
 	url bool,
-) (Record, error) {
-	c, err := objectvalue.NewDisposableCounter(int32(disposableCounter), eternal)
-	if err != nil {
-		return Record{}, fmt.Errorf("fail to create counter: %w", err)
-	}
-
+) Record {
+	c := objectvalue.NewDisposableCounter(disposableCounter, eternal)
 	cc := objectvalue.NewClicksCounter(clicks)
 
 	return Record{
@@ -43,7 +38,7 @@ func NewRecord(
 		body:              body,
 		clicks:            cc,
 		url:               url,
-	}, nil
+	}
 }
 
 // Key record key getter.
@@ -53,12 +48,12 @@ func (r Record) Key() objectvalue.RecordKey {
 
 // Clicks record clicks getter.
 func (r Record) Clicks() uint32 {
-	return r.clicks.Load()
+	return r.clicks.Value()
 }
 
 // DisposableCounter record disposable counter getter.
-func (r Record) DisposableCounter() int32 {
-	return r.disposableCounter.Load()
+func (r Record) DisposableCounter() uint8 {
+	return r.disposableCounter.Value()
 }
 
 // DisposableCounterEternal returns is disposableCounter is eternal.
@@ -114,9 +109,9 @@ func (r *Record) CounterExhausted() bool {
 }
 
 func (r *Record) decreaseDisposableCounter() {
-	r.disposableCounter.Sub()
+	r.disposableCounter = r.disposableCounter.Sub()
 }
 
 func (r *Record) increaseClicksCounter() {
-	r.clicks.Increase()
+	r.clicks = r.clicks.Increase()
 }

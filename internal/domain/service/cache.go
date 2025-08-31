@@ -96,7 +96,7 @@ func (s *CacheService) Serve(params objectvalue.CacheRequestParams) (objectvalue
 
 func (s *CacheService) servePrivileged(ctx context.Context, params objectvalue.CacheRequestParams) (objectvalue.RecordKey, error) {
 	expirationDate := objectvalue.NewExpirationDateFromTTL(params.TTL)
-	newRecord, err := aggregate.NewRecord(
+	newRecord := aggregate.NewRecord(
 		"",
 		expirationDate,
 		params.Disposable,
@@ -105,9 +105,6 @@ func (s *CacheService) servePrivileged(ctx context.Context, params objectvalue.C
 		params.Body,
 		params.IsURL,
 	)
-	if err != nil {
-		return objectvalue.RecordKey(""), err
-	}
 
 	newRecordKey, err := s.getRecordKey(ctx, params)
 	if err != nil {
@@ -153,7 +150,7 @@ func (s *CacheService) getRecordKey(ctx context.Context, params objectvalue.Cach
 
 func (s *CacheService) serveUnprivileged(ctx context.Context, params objectvalue.CacheRequestParams) (objectvalue.RecordKey, error) {
 	expirationDate := objectvalue.NewExpirationDateFromTTL(params.TTL)
-	newRecord, err := aggregate.NewRecord(
+	newRecord := aggregate.NewRecord(
 		"",
 		expirationDate,
 		params.Disposable,
@@ -162,9 +159,6 @@ func (s *CacheService) serveUnprivileged(ctx context.Context, params objectvalue
 		params.Body,
 		params.IsURL,
 	)
-	if err != nil {
-		return objectvalue.RecordKey(""), err
-	}
 
 	var newRecordKey objectvalue.RecordKey
 
@@ -173,7 +167,7 @@ func (s *CacheService) serveUnprivileged(ctx context.Context, params objectvalue
 		keyLength = params.RequestedKeyLength
 	}
 
-	newRecordKey, err = s.recordRepository.GenerateUniqueKey(ctx, keyLength, s.validationConfig.MaxKeyLength())
+	newRecordKey, err := s.recordRepository.GenerateUniqueKey(ctx, keyLength, s.validationConfig.MaxKeyLength())
 	if err != nil {
 		return newRecordKey, fmt.Errorf("fail to generate unique key: %w", err)
 	}
@@ -192,14 +186,9 @@ func (s *CacheService) serveUnprivileged(ctx context.Context, params objectvalue
 
 func (s *CacheService) manageQuota(ctx context.Context, sourceIP objectvalue.QuotaSourceIP) error {
 	quota, err := s.quotaRepository.GetByID(ctx, sourceIP)
-	if errors.Is(err, domainerrors.ErrQuotaNotFound) {
-		quota, err = aggregate.NewQuota(sourceIP, s.quotaConfig.Quota())
-		if err != nil {
-			s.logger.Error("Fail to create new quota", "error", err.Error(), "source_ip", string(sourceIP))
-			return fmt.Errorf("fail to create new quota: %w", err)
-		}
-	}
-	if err != nil {
+	if err != nil && errors.Is(err, domainerrors.ErrQuotaNotFound) {
+		quota = aggregate.NewQuota(sourceIP, s.quotaConfig.Quota())
+	} else if err != nil {
 		s.logger.Error("Fail to get quota", "error", err.Error(), "source_ip", string(sourceIP))
 		return fmt.Errorf("fail to get quota: %w", err)
 	}

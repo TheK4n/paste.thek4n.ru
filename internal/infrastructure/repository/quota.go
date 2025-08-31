@@ -14,7 +14,7 @@ import (
 )
 
 type redisQuotaRecord struct {
-	Value int32 `redis:"value"`
+	Value uint32 `redis:"value"`
 }
 
 // RedisQuotaRepository implementation of domain interface of quota repository.
@@ -49,11 +49,7 @@ func (r *RedisQuotaRepository) GetByID(ctx context.Context, id objectvalue.Quota
 		return aggregate.Quota{}, fmt.Errorf("failure get quota for ip '%s': %w", id, err)
 	}
 
-	q, err := aggregate.NewQuota(id, quota.Value)
-	if err != nil {
-		return aggregate.Quota{}, fmt.Errorf("failure construct quota: %w", err)
-	}
-
+	q := aggregate.NewQuota(id, quota.Value)
 	return q, nil
 }
 

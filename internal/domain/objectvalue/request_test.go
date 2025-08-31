@@ -1,11 +1,11 @@
 package objectvalue
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestExpirationDate(t *testing.T) {
@@ -51,48 +51,37 @@ func TestDisposableCounter(t *testing.T) {
 	t.Run("new disposable counter with valid value returns counter", func(t *testing.T) {
 		t.Parallel()
 
-		counter, err := NewDisposableCounter(10, false)
+		counter := NewDisposableCounter(10, false)
 
-		require.NoError(t, err)
 		assert.NotNil(t, counter)
-		assert.Equal(t, int32(10), counter.Load())
-	})
-
-	t.Run("new disposable counter with value > 255 returns error", func(t *testing.T) {
-		t.Parallel()
-
-		counter, err := NewDisposableCounter(256, false)
-
-		require.Error(t, err)
-		assert.Nil(t, counter)
-		assert.Equal(t, "maximum value for disposable counter is 255", err.Error())
+		assert.Equal(t, uint8(10), counter.Value())
 	})
 
 	t.Run("sub decreases counter by one", func(t *testing.T) {
 		t.Parallel()
 
-		counter, _ := NewDisposableCounter(3, false)
+		counter := NewDisposableCounter(3, false)
 
-		counter.Sub()
+		counter = counter.Sub()
 
-		assert.Equal(t, int32(2), counter.Load())
+		assert.Equal(t, uint8(2), counter.Value())
 	})
 
 	t.Run("sub does nothing when counter is already zero", func(t *testing.T) {
 		t.Parallel()
 
-		counter, _ := NewDisposableCounter(0, false)
+		counter := NewDisposableCounter(0, false)
 
-		counter.Sub()
-		counter.Sub()
+		counter = counter.Sub()
+		counter = counter.Sub()
 
-		assert.Equal(t, int32(0), counter.Load())
+		assert.Equal(t, uint8(0), counter.Value())
 	})
 
 	t.Run("exhausted returns false when counter > 0", func(t *testing.T) {
 		t.Parallel()
 
-		counter, _ := NewDisposableCounter(1, false)
+		counter := NewDisposableCounter(1, false)
 
 		assert.False(t, counter.Exhausted())
 	})
@@ -100,7 +89,7 @@ func TestDisposableCounter(t *testing.T) {
 	t.Run("exhausted returns true when initial counter == 0", func(t *testing.T) {
 		t.Parallel()
 
-		counter, _ := NewDisposableCounter(0, false)
+		counter := NewDisposableCounter(0, false)
 
 		assert.True(t, counter.Exhausted())
 	})
@@ -108,37 +97,10 @@ func TestDisposableCounter(t *testing.T) {
 	t.Run("exhausted returns true after sub to zero", func(t *testing.T) {
 		t.Parallel()
 
-		counter, _ := NewDisposableCounter(1, false)
-		counter.Sub()
+		counter := NewDisposableCounter(1, false)
+		counter = counter.Sub()
+		fmt.Println(counter.Value())
 
-		assert.True(t, counter.Exhausted())
-	})
-
-	t.Run("sub is safe under concurrent calls", func(t *testing.T) {
-		t.Parallel()
-
-		if testing.Short() {
-			t.Skip("skipping test in short mode.")
-		}
-
-		counter, _ := NewDisposableCounter(100, false)
-		workers := 10
-		done := make(chan bool)
-
-		for range workers {
-			go func() {
-				for range 10 {
-					counter.Sub()
-				}
-				done <- true
-			}()
-		}
-
-		for range workers {
-			<-done
-		}
-
-		assert.Equal(t, int32(0), counter.Load())
 		assert.True(t, counter.Exhausted())
 	})
 }
@@ -149,7 +111,7 @@ func TestClicksCounter(t *testing.T) {
 
 		counter := NewClicksCounter(5)
 
-		assert.Equal(t, uint32(5), counter.Load())
+		assert.Equal(t, uint32(5), counter.Value())
 	})
 
 	t.Run("increase increments counter by one", func(t *testing.T) {
@@ -157,36 +119,8 @@ func TestClicksCounter(t *testing.T) {
 
 		counter := NewClicksCounter(0)
 
-		counter.Increase()
+		counter = counter.Increase()
 
-		assert.Equal(t, uint32(1), counter.Load())
-	})
-
-	t.Run("increase is safe for concurrent use", func(t *testing.T) {
-		t.Parallel()
-
-		if testing.Short() {
-			t.Skip("skipping test in short mode.")
-		}
-
-		counter := NewClicksCounter(0)
-		incs := 100
-		workers := 10
-		done := make(chan bool)
-
-		for range workers {
-			go func() {
-				for j := 0; j < incs/workers; j++ {
-					counter.Increase()
-				}
-				done <- true
-			}()
-		}
-
-		for range workers {
-			<-done
-		}
-
-		assert.Equal(t, uint32(incs), counter.Load())
+		assert.Equal(t, uint32(1), counter.Value())
 	})
 }

@@ -27,8 +27,8 @@ func (c TestQuotaConfig) QuotaResetPeriod() time.Duration {
 	return defconf.QuotaResetPeriod()
 }
 
-func (c TestQuotaConfig) Quota() int32 {
-	return math.MaxInt32
+func (c TestQuotaConfig) Quota() uint32 {
+	return math.MaxUint32
 }
 
 type testServer struct {

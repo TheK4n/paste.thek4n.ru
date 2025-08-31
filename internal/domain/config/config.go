@@ -26,7 +26,7 @@ type CacheValidationConfig interface {
 // QuotaConfig contains getters for quota config values.
 type QuotaConfig interface {
 	QuotaResetPeriod() time.Duration
-	Quota() int32
+	Quota() uint32
 }
 
 // CachingConfig contains getters for caching config values.
@@ -104,7 +104,7 @@ func (c DefaultQuotaConfig) QuotaResetPeriod() time.Duration {
 }
 
 // Quota default quota for quota reset period.
-func (c DefaultQuotaConfig) Quota() int32 {
+func (c DefaultQuotaConfig) Quota() uint32 {
 	return 50
 }
 

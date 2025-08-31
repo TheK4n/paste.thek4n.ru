@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"math/big"
 	"sync"
 	"time"
@@ -75,7 +74,7 @@ func (r *RedisRecordRepository) GetByKey(ctx context.Context, key objectvalue.Re
 		record.Body = decompressedBody
 	}
 
-	res, err := aggregate.NewRecord(
+	res := aggregate.NewRecord(
 		string(key),
 		objectvalue.NewExpirationDateFromTTL(record.TTL),
 		record.Countdown,
@@ -84,24 +83,16 @@ func (r *RedisRecordRepository) GetByKey(ctx context.Context, key objectvalue.Re
 		record.Body,
 		record.URL,
 	)
-	if err != nil {
-		return res, fmt.Errorf("fail to create new record: %w", err)
-	}
 
 	return res, nil
 }
 
 // SetByKey writes Record to redis db.
 func (r *RedisRecordRepository) SetByKey(ctx context.Context, key objectvalue.RecordKey, record aggregate.Record) error {
-	recordDisposableCounter := record.DisposableCounter()
-	if recordDisposableCounter < 0 || recordDisposableCounter > math.MaxUint8 {
-		return fmt.Errorf("disposable counter bigger then %d or less then 0", math.MaxUint8)
-	}
-
 	rec := &redisKeyRecord{
 		URL:       record.URL(),
 		Clicks:    record.Clicks(),
-		Countdown: uint8(recordDisposableCounter),
+		Countdown: record.DisposableCounter(),
 		Eternal:   record.DisposableCounterEternal(),
 		TTL:       record.TTL(),
 		Body:      record.RGetBody(),
