@@ -41,6 +41,7 @@ func NewPublisher() *Publisher {
 func (e *Publisher) NotifyAll(event Event) {
 	if event.IsAsynchronous() {
 		go e.notify(event)
+		return
 	}
 
 	e.notify(event)
