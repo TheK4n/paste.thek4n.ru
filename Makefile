@@ -51,6 +51,7 @@ integration:
 unit:
 	GOMAXPROCS=1 \
 	go test \
+		-tags unit \
 		-failfast \
 		-count=1 \
 		./...
@@ -59,6 +60,7 @@ unit:
 unit-short:
 	GOMAXPROCS=1 \
 	go test \
+		-tags unit \
 		-short \
 		-failfast \
 		-count=1 \
@@ -68,26 +70,26 @@ unit-short:
 test:
 	GOMAXPROCS=1 \
 	go test \
-		-tags integration,e2e \
+		-tags unit,integration,e2e \
 		-failfast \
 		-count=1 \
 		./...
 
 .PHONY: lint
 lint:
-	GOFLAGS="-tags=integration,e2e" \
+	GOFLAGS="-tags=unit,integration,e2e" \
 	go tool golangci-lint run --fix --new-from-rev HEAD --timeout=5m
 
 .PHONY: lint-drone
 lint-drone:
-	GOFLAGS="-tags=integration,e2e" \
+	GOFLAGS="-tags=unit,integration,e2e" \
 	golangci-lint run --fix --timeout=5m
 
 
 .PHONY: fmt
 fmt:
 	go fmt ./...
-	GOFLAGS="-tags=integration,e2e" \
+	GOFLAGS="-tags=unit,integration,e2e" \
 	go vet ./...
 
 .PHONY: build

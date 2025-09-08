@@ -22,6 +22,7 @@ type CacheService struct {
 	recordRepository repository.RecordRepository
 	quotaRepository  repository.QuotaRepository
 	apikeyRepository repository.APIKeyRORepository
+	apikeyService    IAPIKeyService
 	eventPublisher   *event.Publisher
 	validationConfig config.CacheValidationConfig
 	quotaConfig      config.QuotaConfig
@@ -33,6 +34,7 @@ func NewCacheService(
 	recordRepository repository.RecordRepository,
 	quotaRepository repository.QuotaRepository,
 	apikeyRepository repository.APIKeyRORepository,
+	apikeyService IAPIKeyService,
 	eventPublisher *event.Publisher,
 	cfg config.CacheValidationConfig,
 	quotacfg config.QuotaConfig,
@@ -42,6 +44,7 @@ func NewCacheService(
 		recordRepository: recordRepository,
 		quotaRepository:  quotaRepository,
 		apikeyRepository: apikeyRepository,
+		apikeyService:    apikeyService,
 		eventPublisher:   eventPublisher,
 		validationConfig: cfg,
 		quotaConfig:      quotacfg,
@@ -58,18 +61,32 @@ func (s *CacheService) Serve(params objectvalue.CacheRequestParams) (objectvalue
 	apikeyID := ""
 
 	if params.APIKey != "" {
-		apikey, err := s.apikeyRepository.GetByID(ctx, params.APIKey)
+		apikeyExists, err := s.apikeyService.Exists(ctx, params.APIKey)
 		if err != nil {
 			return objectvalue.RecordKey(""), err
 		}
-		privileged = apikey.Valid()
 
-		if !apikey.Valid() {
+		if !apikeyExists {
+			s.logger.Warn("Using non existing apikey")
+			return objectvalue.RecordKey(""), domainerrors.ErrAPIKeyNotFound
+		}
+
+		apikeyID, err = s.apikeyService.GetID(ctx, params.APIKey)
+		if err != nil {
+			return objectvalue.RecordKey(""), err
+		}
+
+		apikeyValid, err := s.apikeyService.CheckValid(ctx, params.APIKey)
+		if err != nil {
+			return objectvalue.RecordKey(""), err
+		}
+
+		if !apikeyValid {
 			s.logger.Warn("Using invalid apikey", "apikey", apikeyID)
 			return objectvalue.RecordKey(""), domainerrors.ErrAPIKeyInvalid
 		}
 
-		apikeyID = apikey.PublicID().String()
+		privileged = apikeyValid
 	}
 
 	if privileged {

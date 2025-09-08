@@ -147,6 +147,10 @@ func handlersFactory(
 		cachingConfig,
 	)
 
+	redisAPIKeyRORepository := repository.NewRedisAPIKeyRORepository(
+		apikeyClient,
+	)
+
 	return webhandlers.NewHandlers(
 		cacheValidationConfig,
 		version,
@@ -161,8 +165,9 @@ func handlersFactory(
 				quotaClient,
 				quotaConfig,
 			),
-			repository.NewRedisAPIKeyRORepository(
-				apikeyClient,
+			redisAPIKeyRORepository,
+			service.NewAPIKeyService(
+				redisAPIKeyRORepository,
 			),
 			eventPublisher,
 			cacheValidationConfig,

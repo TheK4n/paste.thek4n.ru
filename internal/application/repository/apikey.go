@@ -11,6 +11,7 @@ import (
 type APIKeyRORepository interface {
 	GetByID(context.Context, string) (aggregate.APIKey, error)
 	GetAll(context.Context) ([]aggregate.APIKey, error)
+	Exists(context.Context, string) (bool, error)
 }
 
 // APIKeyWORepository write interface for apikeys.

@@ -7,7 +7,6 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/aggregate"
-	"github.com/thek4n/paste.thek4n.ru/internal/domain/domainerrors"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/objectvalue"
 )
 
@@ -32,16 +31,7 @@ func NewRedisAPIKeyRORepository(c *redis.Client) *RedisAPIKeyRORepository {
 func (r *RedisAPIKeyRORepository) GetByID(ctx context.Context, key string) (aggregate.APIKey, error) {
 	var record redisAPIKeyRecord
 
-	exists, err := r.exists(ctx, key)
-	if err != nil {
-		return aggregate.APIKey{}, err
-	}
-
-	if !exists {
-		return aggregate.APIKey{}, domainerrors.ErrAPIKeyNotFound
-	}
-
-	err = r.client.HGetAll(ctx, key).Scan(&record)
+	err := r.client.HGetAll(ctx, key).Scan(&record)
 	if err != nil {
 		return aggregate.APIKey{}, fmt.Errorf("failure get record for key '%s': %w", key, err)
 	}
@@ -91,7 +81,8 @@ func (r *RedisAPIKeyRORepository) GetAll(ctx context.Context) ([]aggregate.APIKe
 	return apikeys, nil
 }
 
-func (r *RedisAPIKeyRORepository) exists(ctx context.Context, key string) (bool, error) {
+// Exists checks is key exists.
+func (r *RedisAPIKeyRORepository) Exists(ctx context.Context, key string) (bool, error) {
 	keysNumber, err := r.client.Exists(ctx, key).Uint64()
 	if err != nil {
 		return false, fmt.Errorf("failure checking is key exists: %w", err)
