@@ -113,9 +113,15 @@ func runServer(args []string) {
 		Handler:           mux,
 	}
 
+	serverErrorCh := make(chan error)
+	go func() {
+		serverErrorCh <- server.ListenAndServe()
+	}()
 	logger.Info("Server started", "host", opts.Host, "port", opts.Port)
-	err = server.ListenAndServe()
-	panic(err)
+
+	err = <-serverErrorCh
+	fmt.Fprintf(os.Stderr, "Error: %s", err)
+	os.Exit(1)
 }
 
 func (o *pasteOptions) getLogLevel() slog.Level {

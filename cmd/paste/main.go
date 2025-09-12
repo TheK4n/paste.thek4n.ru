@@ -6,9 +6,17 @@ import (
 	"os"
 )
 
+var usageMessage = `usage: %s <command>
+
+Commands:
+	run       Run paste server.
+	apikeys   API keys management.
+	ping      Ping command. Can be used for check app health.
+`
+
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "run/apikeys/ping")
+		fmt.Fprintf(os.Stderr, usageMessage, os.Args[0])
 		os.Exit(1)
 	}
 
@@ -26,7 +34,7 @@ func main() {
 		os.Exit(0)
 
 	default:
-		fmt.Fprintln(os.Stderr, "run/apikeys/ping")
+		fmt.Fprintf(os.Stderr, usageMessage, os.Args[0])
 		os.Exit(1)
 	}
 }

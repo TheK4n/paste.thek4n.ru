@@ -48,7 +48,7 @@ func apikeysCommand(args []string) {
 			os.Exit(2)
 		}
 
-		fmt.Print(columnT(fmt.Sprintf("%s\n%s", APIKeysListHeader(), printAPIKeys(apikeys))))
+		fmt.Print(columnT(fmt.Sprintf("%s\n%s", apiKeysListHeader(), printAPIKeys(apikeys))))
 
 	case "gen":
 		apikey, err := s.GenerateAPIKey()
@@ -112,7 +112,16 @@ func apikeysCommand(args []string) {
 }
 
 func printUsage() {
-	fmt.Fprintf(os.Stderr, "usage: %s apikeys <command> [arg]\n\ncommands: list,gen,revoke,reauthorize,rm\n", os.Args[0])
+	usageMessage := `usage: %s apikeys <command> [args]
+
+Commands:
+	list          List apikeys
+	gen           Generate new apikey
+	revoke        Revoke apikey
+	reauthorize   Reauthorize revoked apikey
+	rm            Reauthorize revoked apikey`
+
+	fmt.Fprintf(os.Stderr, usageMessage, os.Args[0])
 }
 
 func printAPIKeys(apikeys []aggregate.APIKey) string {
@@ -124,7 +133,7 @@ func printAPIKeys(apikeys []aggregate.APIKey) string {
 	return res
 }
 
-func APIKeysListHeader() string {
+func apiKeysListHeader() string {
 	return "№\tKey\tId\tStatus\n"
 }
 
