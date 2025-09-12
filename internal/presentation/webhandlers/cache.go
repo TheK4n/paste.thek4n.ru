@@ -76,13 +76,13 @@ func (app *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Params.IsURL && !validateURL(string(body)) {
-		handleCacheError(w, fmt.Errorf("invalid url"), logger)
+		handleCacheError(w, &cacheError{Message: "Invalid 'url'", StatusCode: http.StatusBadRequest}, logger)
 		return
 	}
 
 	paramsDisposable := req.Params.Disposable
 	if paramsDisposable < 0 || paramsDisposable > math.MaxUint8 {
-		handleCacheError(w, fmt.Errorf("disposable counter more then %d or less then 0", math.MaxUint8), logger)
+		handleCacheError(w, &cacheError{Message: fmt.Sprintf("disposable counter more then %d or less then 0", math.MaxUint8), StatusCode: http.StatusBadRequest}, logger)
 		return
 	}
 
@@ -90,7 +90,7 @@ func (app *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 
 	paramsLength := req.Params.Length
 	if paramsLength < 0 || paramsLength > math.MaxUint8 {
-		handleCacheError(w, fmt.Errorf("requested key length more then %d or less then 0", math.MaxUint8), logger)
+		handleCacheError(w, &cacheError{Message: fmt.Sprintf("requested key length more then %d or less then 0", math.MaxUint8), StatusCode: http.StatusBadRequest}, logger)
 		return
 	}
 
@@ -193,29 +193,97 @@ func sendSuccessResponse(w http.ResponseWriter, r *http.Request, key string) err
 }
 
 func handleCacheError(w http.ResponseWriter, err error, logger *slog.Logger) {
-	if err == domainerrors.ErrBodyTooLarge {
-		w.WriteHeader(http.StatusRequestEntityTooLarge)
-		return
-	}
+	switch err {
+	case domainerrors.ErrQuotaExhausted:
+		err = &cacheError{
+			Message:    "Quota exhausted",
+			StatusCode: http.StatusForbidden,
+			Err:        err,
+		}
 
-	if err == domainerrors.ErrAPIKeyNotFound {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
+	case domainerrors.ErrBodyTooLarge:
+		err = &cacheError{
+			Message:    "Body too large",
+			StatusCode: http.StatusRequestEntityTooLarge,
+			Err:        err,
+		}
 
-	if err == domainerrors.ErrAPIKeyInvalid {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
+	case domainerrors.ErrRequestedKeyExists:
+		err = &cacheError{
+			Message:    "Requested key exists",
+			StatusCode: http.StatusConflict,
+			Err:        err,
+		}
 
-	if err == domainerrors.ErrRequestedKeyExists {
-		w.WriteHeader(http.StatusConflict)
-		return
-	}
+	case domainerrors.ErrInvalidTTL:
+		err = &cacheError{
+			Message:    "Invalid TTL",
+			StatusCode: http.StatusBadRequest,
+			Err:        err,
+		}
 
-	if err == domainerrors.ErrInvalidTTL {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+	case domainerrors.ErrInvalidRequestedKeyLength:
+		err = &cacheError{
+			Message:    "Invalid key length",
+			StatusCode: http.StatusBadRequest,
+			Err:        err,
+		}
+
+	case domainerrors.ErrInvalidRequestedKey:
+		err = &cacheError{
+			Message:    "Invalid requested key",
+			StatusCode: http.StatusBadRequest,
+			Err:        err,
+		}
+
+	case domainerrors.ErrNonAuthorized:
+		err = &cacheError{
+			Message:    "Unauthorized",
+			StatusCode: http.StatusUnauthorized,
+			Err:        err,
+		}
+
+	case domainerrors.ErrRecordNotFound:
+		err = &cacheError{
+			Message:    "Not found",
+			StatusCode: http.StatusNotFound,
+			Err:        err,
+		}
+
+	case domainerrors.ErrRecordCounterExhausted:
+		err = &cacheError{
+			Message:    "Not found",
+			StatusCode: http.StatusNotFound,
+			Err:        err,
+		}
+
+	case domainerrors.ErrRecordExpired:
+		err = &cacheError{
+			Message:    "Not found",
+			StatusCode: http.StatusNotFound,
+			Err:        err,
+		}
+
+	case domainerrors.ErrAPIKeyNotFound:
+		err = &cacheError{
+			Message:    "Forbidden",
+			StatusCode: http.StatusUnauthorized,
+			Err:        err,
+		}
+
+	case domainerrors.ErrQuotaNotFound:
+		err = &cacheError{
+			Message:    "Internal server error",
+			StatusCode: http.StatusInternalServerError,
+			Err:        err,
+		}
+
+	case domainerrors.ErrAPIKeyInvalid:
+		err = &cacheError{
+			Message:    "Unauthorized",
+			StatusCode: http.StatusUnauthorized,
+			Err:        err,
+		}
 	}
 
 	cacheErr, ok := err.(*cacheError)
