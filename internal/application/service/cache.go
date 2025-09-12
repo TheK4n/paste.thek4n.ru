@@ -59,34 +59,13 @@ func (s *CacheService) Serve(params objectvalue.CacheRequestParams) (objectvalue
 
 	privileged := false
 	apikeyID := ""
+	var err error
 
 	if params.APIKey != "" {
-		apikeyExists, err := s.apikeyService.Exists(ctx, params.APIKey)
+		privileged, apikeyID, err = s.checkAPIKey(ctx, params)
 		if err != nil {
 			return objectvalue.RecordKey(""), err
 		}
-
-		if !apikeyExists {
-			s.logger.Warn("Using non existing apikey")
-			return objectvalue.RecordKey(""), domainerrors.ErrAPIKeyNotFound
-		}
-
-		apikeyID, err = s.apikeyService.GetID(ctx, params.APIKey)
-		if err != nil {
-			return objectvalue.RecordKey(""), err
-		}
-
-		apikeyValid, err := s.apikeyService.CheckValid(ctx, params.APIKey)
-		if err != nil {
-			return objectvalue.RecordKey(""), err
-		}
-
-		if !apikeyValid {
-			s.logger.Warn("Using invalid apikey", "apikey", apikeyID)
-			return objectvalue.RecordKey(""), domainerrors.ErrAPIKeyInvalid
-		}
-
-		privileged = apikeyValid
 	}
 
 	if privileged {
@@ -103,12 +82,41 @@ func (s *CacheService) Serve(params objectvalue.CacheRequestParams) (objectvalue
 		return s.servePrivileged(ctx, params)
 	}
 
-	err := s.validateUnprivilegedRequestParams(params)
+	err = s.validateUnprivilegedRequestParams(params)
 	if err != nil {
 		return objectvalue.RecordKey(""), err
 	}
 
 	return s.serveUnprivileged(ctx, params)
+}
+
+func (s *CacheService) checkAPIKey(ctx context.Context, params objectvalue.CacheRequestParams) (bool, string, error) {
+	apikeyExists, err := s.apikeyService.Exists(ctx, params.APIKey)
+	if err != nil {
+		return false, "", fmt.Errorf("fail to check apikey existing: %w", err)
+	}
+
+	if !apikeyExists {
+		s.logger.Warn("Using non existing apikey")
+		return false, "", domainerrors.ErrAPIKeyNotFound
+	}
+
+	apikeyID, err := s.apikeyService.GetID(ctx, params.APIKey)
+	if err != nil {
+		return false, "", fmt.Errorf("fail to get apikey ID: %w", err)
+	}
+
+	apikeyValid, err := s.apikeyService.CheckValid(ctx, params.APIKey)
+	if err != nil {
+		return false, "", fmt.Errorf("fail to check apikey validity: %w", err)
+	}
+
+	if !apikeyValid {
+		s.logger.Warn("Using invalid apikey", "apikey", apikeyID)
+		return false, "", domainerrors.ErrAPIKeyInvalid
+	}
+
+	return apikeyValid, apikeyID, nil
 }
 
 func (s *CacheService) servePrivileged(ctx context.Context, params objectvalue.CacheRequestParams) (objectvalue.RecordKey, error) {
