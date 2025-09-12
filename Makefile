@@ -1,6 +1,5 @@
 APP_VERSION ?= built-from-source
 OUTPUTDIR ?= bin/
-VITE_API_URL ?= http://localhost:8080
 
 default: build
 
@@ -102,5 +101,5 @@ build:
 
 .PHONY: build-frontend
 build-frontend:
-	VITE_API_URL="$(VITE_API_URL)" GOFLAGS="-tags=frontend" go generate ./...
+	VITE_API_URL="" GOFLAGS="-tags=frontend" go generate ./...
 	APP_VERSION="$(APP_VERSION) (frontend)" GOFLAGS="-tags=frontend" $(MAKE) build
