@@ -1,0 +1,54 @@
+version: 1
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: ./cmd/paste
+    binary: "paste"
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+      - arm
+      - 386
+    goarm:
+      - 6
+      - 7
+    ldflags:
+      - -s -w -X main.version={{.Tag}}
+
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{- .Binary }}_
+      {{- .Tag }}_
+      {{- .Os }}_
+      {{- if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
