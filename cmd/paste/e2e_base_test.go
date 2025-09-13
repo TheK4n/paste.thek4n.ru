@@ -14,10 +14,13 @@ import (
 	"testing"
 	"time"
 
+	amqp "github.com/rabbitmq/amqp091-go"
+	redis "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/dig"
 
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/config"
-	"github.com/thek4n/paste.thek4n.ru/internal/domain/event"
+	"github.com/thek4n/paste.thek4n.ru/internal/presentation/webhandlers"
 )
 
 type TestQuotaConfig struct{}
@@ -33,6 +36,7 @@ func (c TestQuotaConfig) Quota() uint32 {
 
 type testServer struct {
 	*httptest.Server
+	container *dig.Container
 }
 
 func (ts *testServer) post(path, body string) (*http.Response, error) {
@@ -67,38 +71,144 @@ func getKeyLength(t *testing.T, url string) int {
 	return len(parts[3])
 }
 
+func provideTestOptions() (*pasteOptions, error) {
+	opts := &pasteOptions{
+		Port:              0,
+		Host:              "localhost",
+		EnableHealthcheck: true,
+		DBPort:            6379,
+		DBHost:            getRedisHost(),
+		Logger:            "plain",
+		LogLevel:          "INFO",
+	}
+	return opts, nil
+}
+
+func provideTestQuotaConfig() config.QuotaConfig {
+	return TestQuotaConfig{}
+}
+
+func provideTestLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+}
+
+func buildTestContainer() *dig.Container {
+	container := dig.New()
+
+	provide := func(constructor interface{}, opts ...dig.ProvideOption) {
+		if err := container.Provide(constructor, opts...); err != nil {
+			panic(err)
+		}
+	}
+
+	// Provide test options
+	provide(provideTestOptions)
+
+	// Provide test logger
+	provide(provideTestLogger)
+
+	// Provide Redis clients with names
+	provide(provideRecordsClient, dig.Name("records"))
+	provide(provideQuotaClient, dig.Name("quota"))
+	provide(provideAPIKeyClient, dig.Name("apikey"))
+
+	provide(provideTestBrokerChannel)
+
+	// Provide event publisher
+	provide(provideEventPublisher)
+
+	// Provide repositories
+	provide(provideRecordRepository)
+	provide(provideAPIKeyRORepository)
+	provide(provideQuotaRepository)
+
+	// Provide services
+	provide(provideGetService)
+	provide(provideAPIKeyService)
+	provide(provideCacheService)
+
+	// Provide handlers
+	provide(provideHandlers)
+
+	// Provide server with test modifications
+	provide(provideTestServer)
+
+	return container
+}
+
+func provideTestBrokerChannel() (*amqp.Channel, error) {
+	return nil, nil
+}
+
+func provideTestServer(
+	opts *pasteOptions,
+	handlers *webhandlers.Handlers,
+) *http.Server {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /{key}/{$}", handlers.Get)
+	mux.HandleFunc("GET /{key}/clicks/{$}", handlers.GetClicks)
+	mux.HandleFunc("POST /{$}", handlers.Cache)
+
+	if opts.EnableHealthcheck {
+		mux.HandleFunc("GET /health/{$}", handlers.Healthcheck)
+	}
+
+	// Используем случайный порт для тестов
+	return &http.Server{
+		Addr:              "localhost:0",
+		ReadHeaderTimeout: 3 * time.Second,
+		Handler:           mux,
+	}
+}
+
 func setupTestServer(t *testing.T) *testServer {
 	t.Helper()
 
-	opts := pasteOptions{
-		EnableHealthcheck: true,
-		DBHost:            getRedisHost(),
-		DBPort:            6379,
-	}
+	container := buildTestContainer()
 
-	recordsClient := newRedisClient(&opts, 0)
-	quotaClient := newRedisClient(&opts, 1)
-	apikeyClient := newRedisClient(&opts, 2)
+	var recordsClient, quotaClient, apikeyClient *redis.Client
+	err := container.Invoke(func(
+		rc struct {
+			dig.In
+			Client *redis.Client `name:"records"`
+		},
+		qc struct {
+			dig.In
+			Client *redis.Client `name:"quota"`
+		},
+		ac struct {
+			dig.In
+			Client *redis.Client `name:"apikey"`
+		},
+		opts *pasteOptions,
+	) {
+		recordsClient = rc.Client
+		quotaClient = qc.Client
+		apikeyClient = ac.Client
 
-	recordsClient.FlushDB(context.Background())
-	quotaClient.FlushDB(context.Background())
-	apikeyClient.FlushDB(context.Background())
+		recordsClient.Options().DB = 10
+		quotaClient.Options().DB = 11
+		apikeyClient.Options().DB = 12
 
-	handlers := handlersFactory(
-		recordsClient,
-		quotaClient,
-		apikeyClient,
-		&opts,
-		slog.Default(),
-		event.NewPublisher(),
-		TestQuotaConfig{},
-	)
+		ctx := context.Background()
+		recordsClient.FlushDB(ctx)
+		quotaClient.FlushDB(ctx)
+		apikeyClient.FlushDB(ctx)
+	})
+	require.NoError(t, err)
 
-	mux := http.NewServeMux()
-	addHandlers(mux, handlers, &opts)
-	return &testServer{
-		Server: httptest.NewServer(mux),
-	}
+	var testSrv *testServer
+	err = container.Invoke(func(server *http.Server) {
+		ts := httptest.NewServer(server.Handler)
+		testSrv = &testServer{
+			Server:    ts,
+			container: container,
+		}
+	})
+	require.NoError(t, err)
+
+	return testSrv
 }
 
 func getRedisHost() string {

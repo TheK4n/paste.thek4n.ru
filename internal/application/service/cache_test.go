@@ -24,9 +24,13 @@ func TestCacheService_Serve(t *testing.T) {
 
 	publisher := event.NewPublisher()
 
-	recordRepo := repository.NewRedisRecordRepository(newRedisClient(0), config.DefaultCachingConfig{})
-	quotaRepo := repository.NewRedisQuotaRepository(newRedisClient(1), config.DefaultQuotaConfig{})
-	apikeyRepo := repository.NewRedisAPIKeyRORepository(newRedisClient(2))
+	recordRedisClient := newRedisClient(t, 10)
+	quotaRedisClient := newRedisClient(t, 11)
+	apiKeyRedisClient := newRedisClient(t, 12)
+
+	recordRepo := repository.NewRedisRecordRepository(recordRedisClient, config.DefaultCachingConfig{})
+	quotaRepo := repository.NewRedisQuotaRepository(quotaRedisClient, config.DefaultQuotaConfig{})
+	apikeyRepo := repository.NewRedisAPIKeyRORepository(apiKeyRedisClient)
 
 	apikeyService := TrueAPIKeyService{}
 
@@ -81,10 +85,10 @@ func TestCacheService_Serve(t *testing.T) {
 	})
 }
 
-func newRedisClient(db int) *redis.Client {
+func newRedisClient(t *testing.T, db int) *redis.Client {
 	host := getRedisHost()
 	port := 6379
-	return redis.NewClient(&redis.Options{
+	client := redis.NewClient(&redis.Options{
 		Addr:         fmt.Sprintf("%s:%d", host, port),
 		PoolSize:     100,
 		Password:     "",
@@ -94,6 +98,10 @@ func newRedisClient(db int) *redis.Client {
 		DialTimeout:  10 * time.Second,
 		WriteTimeout: 5 * time.Second,
 	})
+
+	require.NoError(t, client.FlushDB(context.Background()).Err())
+
+	return client
 }
 
 func getRedisHost() string {

@@ -10,7 +10,8 @@ import (
 
 	flags "github.com/jessevdk/go-flags"
 	amqp "github.com/rabbitmq/amqp091-go"
-	"github.com/redis/go-redis/v9"
+	redis "github.com/redis/go-redis/v9"
+	"go.uber.org/dig"
 
 	"github.com/thek4n/paste.thek4n.ru/internal/application/service"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/config"
@@ -41,15 +42,81 @@ type pasteOptions struct {
 
 const levelTrace = slog.Level(-8)
 
+type digConfig struct {
+	dig.In
+
+	Options *pasteOptions
+	Logger  *slog.Logger
+	Server  *http.Server
+}
+
 var mux = http.NewServeMux()
 
 func runServer(args []string) {
+	container := buildContainer(args)
+
+	if err := container.Invoke(run); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		os.Exit(1)
+	}
+}
+
+func buildContainer(args []string) *dig.Container {
+	container := dig.New()
+
+	provide := func(constructor any, opts ...dig.ProvideOption) {
+		if err := container.Provide(constructor, opts...); err != nil {
+			fmt.Fprintf(os.Stderr, "DI Error: %s\n", err)
+			os.Exit(1)
+		}
+	}
+
+	// Provide args
+	provide(func() []string { return args })
+
+	// Provide options
+	provide(provideOptions)
+
+	// Provide logger components
+	provide(provideLoggerHandler)
+	provide(provideLogger)
+
+	// Provide Redis clients with names
+	provide(provideRecordsClient, dig.Name("records"))
+	provide(provideQuotaClient, dig.Name("quota"))
+	provide(provideAPIKeyClient, dig.Name("apikey"))
+
+	// Provide AMQP channel
+	provide(provideBrokerChannel)
+
+	// Provide event publisher
+	provide(provideEventPublisher)
+
+	// Provide repositories
+	provide(provideRecordRepository)
+	provide(provideAPIKeyRORepository)
+	provide(provideQuotaRepository)
+
+	// Provide services
+	provide(provideGetService)
+	provide(provideAPIKeyService)
+	provide(provideCacheService)
+
+	// Provide handlers
+	provide(provideHandlers)
+
+	// Provide server
+	provide(provideServer)
+
+	return container
+}
+
+func provideOptions(args []string) (*pasteOptions, error) {
 	var opts pasteOptions
 
 	_, err := flags.NewParser(&opts, flags.Default).ParseArgs(args)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Parse params error: %s\n", err)
-		os.Exit(2)
+		return nil, fmt.Errorf("parse params error: %w", err)
 	}
 
 	if opts.ShowVersion {
@@ -57,154 +124,15 @@ func runServer(args []string) {
 		os.Exit(0)
 	}
 
-	handler, err := newLoggerHandler(&opts)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Cant get logger: %s", err)
-		os.Exit(1)
-	}
-
-	logger := slog.New(handler)
-
-	redisHost := os.Getenv("REDIS_HOST")
-	if redisHost != "" {
+	// Override DBHost if environment variable is set
+	if redisHost := os.Getenv("REDIS_HOST"); redisHost != "" {
 		opts.DBHost = redisHost
 	}
 
-	brokerConnectionURL := fmt.Sprintf(
-		"amqp://%s:%s@%s:%d/",
-		opts.BrokerUser,
-		opts.BrokerPassword,
-		getBrokerHost(&opts),
-		opts.BrokerPort,
-	)
-
-	loggerb := logger.With("broker_host", getBrokerHost(&opts), "broker_port", opts.BrokerPort, "broker_user", opts.BrokerUser)
-	loggerb.Debug("Initializing amqp broker channel...")
-	brokerChannel, err := initBrokerChannel(brokerConnectionURL, loggerb)
-	if err != nil {
-		loggerb.Error("Failed to initialize amqp broker channel", "error", err)
-		os.Exit(1)
-	}
-	loggerb.Debug("Successfully initialized amqp broker channel")
-
-	eventPublisher := event.NewPublisher()
-	rbmq := eventhandler.NewRabbitMQEventHandler(brokerChannel)
-	eventPublisher.Subscribe(rbmq, event.NewAPIKeyUsedEvent("", apikeys.UsageReason_CUSTOMKEY, ""))
-
-	recordsClient := newRedisClient(&opts, 0)
-	quotaClient := newRedisClient(&opts, 1)
-	apikeyClient := newRedisClient(&opts, 2)
-
-	handlers := handlersFactory(
-		recordsClient,
-		quotaClient,
-		apikeyClient,
-		&opts,
-		logger,
-		eventPublisher,
-		config.DefaultQuotaConfig{},
-	)
-	addHandlers(mux, handlers, &opts)
-
-	hostport := fmt.Sprintf("%s:%d", opts.Host, opts.Port)
-	server := &http.Server{
-		Addr:              hostport,
-		ReadHeaderTimeout: 3 * time.Second,
-		Handler:           mux,
-	}
-
-	serverErrorCh := make(chan error)
-	go func() {
-		serverErrorCh <- server.ListenAndServe()
-	}()
-	logger.Info("Server started", "host", opts.Host, "port", opts.Port)
-
-	err = <-serverErrorCh
-	fmt.Fprintf(os.Stderr, "Error: %s", err)
-	os.Exit(1)
+	return &opts, nil
 }
 
-func (o *pasteOptions) getLogLevel() slog.Level {
-	levels := map[string]slog.Level{
-		"TRACE": levelTrace,
-		"DEBUG": slog.LevelDebug,
-		"WARN":  slog.LevelWarn,
-		"INFO":  slog.LevelInfo,
-		"ERROR": slog.LevelError,
-	}
-
-	return levels[strings.ToUpper(o.LogLevel)]
-}
-
-func handlersFactory(
-	recordsClient *redis.Client,
-	quotaClient *redis.Client,
-	apikeyClient *redis.Client,
-	opts *pasteOptions,
-	logger *slog.Logger,
-	eventPublisher *event.Publisher,
-	quotaConfig config.QuotaConfig,
-) *webhandlers.Handlers {
-	cachingConfig := config.DefaultCachingConfig{}
-	cacheValidationConfig := config.DefaultCacheValidationConfig{}
-
-	redisRecordRepository := repository.NewRedisRecordRepository(
-		recordsClient,
-		cachingConfig,
-	)
-
-	redisAPIKeyRORepository := repository.NewRedisAPIKeyRORepository(
-		apikeyClient,
-	)
-
-	return webhandlers.NewHandlers(
-		cacheValidationConfig,
-		version,
-		opts.EnableHealthcheck,
-		*logger,
-		service.NewGetService(
-			redisRecordRepository,
-		),
-		service.NewCacheService(
-			redisRecordRepository,
-			repository.NewRedisQuotaRepository(
-				quotaClient,
-				quotaConfig,
-			),
-			redisAPIKeyRORepository,
-			service.NewAPIKeyService(
-				redisAPIKeyRORepository,
-			),
-			eventPublisher,
-			cacheValidationConfig,
-			quotaConfig,
-			logger,
-		),
-	)
-}
-
-func newRedisClient(opts *pasteOptions, db int) *redis.Client {
-	return redis.NewClient(&redis.Options{
-		Addr:         fmt.Sprintf("%s:%d", opts.DBHost, opts.DBPort),
-		PoolSize:     100,
-		Password:     "",
-		Username:     "",
-		DB:           db,
-		MaxRetries:   5,
-		DialTimeout:  10 * time.Second,
-		WriteTimeout: 5 * time.Second,
-	})
-}
-
-func getBrokerHost(opts *pasteOptions) string {
-	brokerHost := os.Getenv("BROKER_HOST")
-	if brokerHost == "" {
-		return opts.BrokerHost
-	}
-	return brokerHost
-}
-
-func newLoggerHandler(opts *pasteOptions) (slog.Handler, error) {
+func provideLoggerHandler(opts *pasteOptions) (slog.Handler, error) {
 	levelNames := map[slog.Leveler]string{
 		levelTrace: "TRACE",
 	}
@@ -220,7 +148,6 @@ func newLoggerHandler(opts *pasteOptions) (slog.Handler, error) {
 				if !exists {
 					levelLabel = level.String()
 				}
-
 				a.Value = slog.StringValue(levelLabel)
 			}
 			return a
@@ -237,18 +164,208 @@ func newLoggerHandler(opts *pasteOptions) (slog.Handler, error) {
 	return nil, fmt.Errorf("invalid logger")
 }
 
-func addHandlers(mux *http.ServeMux, h *webhandlers.Handlers, opts *pasteOptions) {
-	mux.HandleFunc("GET /{key}/{$}", h.Get)
-	mux.HandleFunc("GET /{key}/clicks/{$}", h.GetClicks)
-	mux.HandleFunc("POST /{$}", h.Cache)
+func provideLogger(handler slog.Handler) *slog.Logger {
+	return slog.New(handler)
+}
+
+func provideBrokerChannel(opts *pasteOptions, logger *slog.Logger) (*amqp.Channel, error) {
+	brokerHost := os.Getenv("BROKER_HOST")
+	if brokerHost == "" {
+		brokerHost = opts.BrokerHost
+	}
+
+	brokerConnectionURL := fmt.Sprintf(
+		"amqp://%s:%s@%s:%d/",
+		opts.BrokerUser,
+		opts.BrokerPassword,
+		brokerHost,
+		opts.BrokerPort,
+	)
+
+	loggerb := logger.With("broker_host", brokerHost, "broker_port", opts.BrokerPort, "broker_user", opts.BrokerUser)
+	loggerb.Debug("Initializing amqp broker channel...")
+
+	brokerChannel, err := initBrokerChannel(brokerConnectionURL, loggerb)
+	if err != nil {
+		loggerb.Error("Failed to initialize amqp broker channel", "error", err)
+		return nil, err
+	}
+
+	loggerb.Debug("Successfully initialized amqp broker channel")
+	return brokerChannel, nil
+}
+
+func provideEventPublisher(brokerChannel *amqp.Channel) *event.Publisher {
+	eventPublisher := event.NewPublisher()
+	rbmq := eventhandler.NewRabbitMQEventHandler(brokerChannel)
+	eventPublisher.Subscribe(rbmq, event.NewAPIKeyUsedEvent("", apikeys.UsageReason_CUSTOMKEY, ""))
+	return eventPublisher
+}
+
+func provideRecordsClient(opts *pasteOptions) *redis.Client {
+	return newRedisClient(opts, 0)
+}
+
+func provideQuotaClient(opts *pasteOptions) *redis.Client {
+	return newRedisClient(opts, 1)
+}
+
+func provideAPIKeyClient(opts *pasteOptions) *redis.Client {
+	return newRedisClient(opts, 2)
+}
+
+func provideRecordRepository(params struct {
+	dig.In
+	Client *redis.Client `name:"records"`
+},
+) *repository.RedisRecordRepository {
+	cachingConfig := config.DefaultCachingConfig{}
+	return repository.NewRedisRecordRepository(
+		params.Client,
+		cachingConfig,
+	)
+}
+
+func provideAPIKeyRORepository(params struct {
+	dig.In
+	Client *redis.Client `name:"apikey"`
+},
+) *repository.RedisAPIKeyRORepository {
+	return repository.NewRedisAPIKeyRORepository(
+		params.Client,
+	)
+}
+
+func provideQuotaRepository(params struct {
+	dig.In
+	Client *redis.Client `name:"quota"`
+},
+) *repository.RedisQuotaRepository {
+	quotaConfig := config.DefaultQuotaConfig{}
+	return repository.NewRedisQuotaRepository(
+		params.Client,
+		quotaConfig,
+	)
+}
+
+func provideGetService(
+	recordRepository *repository.RedisRecordRepository,
+) *service.GetService {
+	return service.NewGetService(recordRepository)
+}
+
+func provideAPIKeyService(
+	apikeyRORepository *repository.RedisAPIKeyRORepository,
+) *service.APIKeyService {
+	return service.NewAPIKeyService(apikeyRORepository)
+}
+
+func provideCacheService(
+	recordRepository *repository.RedisRecordRepository,
+	quotaRepository *repository.RedisQuotaRepository,
+	apikeyRORepository *repository.RedisAPIKeyRORepository,
+	apiKeyService *service.APIKeyService,
+	eventPublisher *event.Publisher,
+	logger *slog.Logger,
+) *service.CacheService {
+	cacheValidationConfig := config.DefaultCacheValidationConfig{}
+	quotaConfig := config.DefaultQuotaConfig{}
+
+	return service.NewCacheService(
+		recordRepository,
+		quotaRepository,
+		apikeyRORepository,
+		apiKeyService,
+		eventPublisher,
+		cacheValidationConfig,
+		quotaConfig,
+		logger,
+	)
+}
+
+func provideHandlers(
+	opts *pasteOptions,
+	logger *slog.Logger,
+	getService *service.GetService,
+	cacheService *service.CacheService,
+) *webhandlers.Handlers {
+	cacheValidationConfig := config.DefaultCacheValidationConfig{}
+
+	return webhandlers.NewHandlers(
+		cacheValidationConfig,
+		version,
+		opts.EnableHealthcheck,
+		*logger,
+		getService,
+		cacheService,
+	)
+}
+
+func provideServer(
+	opts *pasteOptions,
+	handlers *webhandlers.Handlers,
+) *http.Server {
+	mux.HandleFunc("GET /{key}/{$}", handlers.Get)
+	mux.HandleFunc("GET /{key}/clicks/{$}", handlers.GetClicks)
+	mux.HandleFunc("POST /{$}", handlers.Cache)
 
 	if opts.EnableHealthcheck {
-		mux.HandleFunc("GET /health/{$}", h.Healthcheck)
+		mux.HandleFunc("GET /health/{$}", handlers.Healthcheck)
 	}
 	if opts.EnableInteractiveDocs {
-		mux.HandleFunc("GET /docs/{$}", h.DocsHandler)
-		mux.Handle("/docs/static/", h.DocsStaticHandler())
+		mux.HandleFunc("GET /docs/{$}", handlers.DocsHandler)
+		mux.Handle("/docs/static/", handlers.DocsStaticHandler())
 	}
+
+	hostport := fmt.Sprintf("%s:%d", opts.Host, opts.Port)
+
+	return &http.Server{
+		Addr:              hostport,
+		ReadHeaderTimeout: 3 * time.Second,
+		Handler:           mux,
+	}
+}
+
+func run(config digConfig) error {
+	serverErrorCh := make(chan error, 1)
+
+	go func() {
+		serverErrorCh <- config.Server.ListenAndServe()
+	}()
+
+	config.Logger.Info(
+		"Server started",
+		"host", config.Options.Host,
+		"port", config.Options.Port,
+	)
+
+	err := <-serverErrorCh
+	return fmt.Errorf("server error: %w", err)
+}
+
+func (o *pasteOptions) getLogLevel() slog.Level {
+	levels := map[string]slog.Level{
+		"TRACE": levelTrace,
+		"DEBUG": slog.LevelDebug,
+		"WARN":  slog.LevelWarn,
+		"INFO":  slog.LevelInfo,
+		"ERROR": slog.LevelError,
+	}
+
+	return levels[strings.ToUpper(o.LogLevel)]
+}
+
+func newRedisClient(opts *pasteOptions, db int) *redis.Client {
+	return redis.NewClient(&redis.Options{
+		Addr:         fmt.Sprintf("%s:%d", opts.DBHost, opts.DBPort),
+		PoolSize:     100,
+		Password:     "",
+		Username:     "",
+		DB:           db,
+		MaxRetries:   5,
+		DialTimeout:  10 * time.Second,
+		WriteTimeout: 5 * time.Second,
+	})
 }
 
 func initBrokerChannel(connectURL string, logger *slog.Logger) (*amqp.Channel, error) {

@@ -8,6 +8,7 @@ require (
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/stretchr/testify v1.10.0
+	go.uber.org/dig v1.19.0
 	google.golang.org/protobuf v1.36.6
 )
 
