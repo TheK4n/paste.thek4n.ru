@@ -317,5 +317,5 @@ func (s *CacheService) logAPIKeyUsage(apikeyID string, params objectvalue.CacheR
 	event := event.NewAPIKeyUsedEvent(apikeyID, reason, params.SourceIP)
 	s.eventPublisher.NotifyAll(event)
 
-	s.logger.Info("Sent apikey usage message", "apikey", apikeyID)
+	s.logger.Debug("Sending apikey usage message", "apikey", apikeyID)
 }

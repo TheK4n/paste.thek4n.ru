@@ -8,20 +8,24 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/event"
+	"github.com/thek4n/paste.thek4n.ru/internal/domain/logger"
 	"github.com/thek4n/paste.thek4n.ru/pkg/apikeys"
 )
 
 // RabbitMQEventHandler implementation of EventHandler. Sends messages to rabbitmq.
 type RabbitMQEventHandler struct {
 	channel *amqp.Channel
+	logger  logger.Logger
 }
 
 // NewRabbitMQEventHandler constructor for RabbitMQEventHandler.
 func NewRabbitMQEventHandler(
 	channel *amqp.Channel,
+	logger logger.Logger,
 ) RabbitMQEventHandler {
 	return RabbitMQEventHandler{
 		channel: channel,
+		logger:  logger,
 	}
 }
 
@@ -29,7 +33,13 @@ func NewRabbitMQEventHandler(
 func (h RabbitMQEventHandler) Notify(ev event.Event) {
 	switch e := ev.(type) {
 	case event.APIKeyUsedEvent:
-		_ = h.sendAPIKeyUsageLog(e.APIKeyID(), e.Reason(), e.FromIP())
+		err := h.sendAPIKeyUsageLog(e.APIKeyID(), e.Reason(), e.FromIP())
+		if err != nil {
+			h.logger.Warn("Error on sending apikey usage message", "apikey", e.APIKeyID(), "error", err)
+			return
+		}
+
+		h.logger.Info("Successfully sent apikey usage message", "apikey", e.APIKeyID())
 	}
 }
 

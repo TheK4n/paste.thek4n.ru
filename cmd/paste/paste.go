@@ -195,9 +195,9 @@ func provideBrokerChannel(opts *pasteOptions, logger *slog.Logger) (*amqp.Channe
 	return brokerChannel, nil
 }
 
-func provideEventPublisher(brokerChannel *amqp.Channel) *event.Publisher {
+func provideEventPublisher(brokerChannel *amqp.Channel, logger *slog.Logger) *event.Publisher {
 	eventPublisher := event.NewPublisher()
-	rbmq := eventhandler.NewRabbitMQEventHandler(brokerChannel)
+	rbmq := eventhandler.NewRabbitMQEventHandler(brokerChannel, logger)
 	eventPublisher.Subscribe(rbmq, event.NewAPIKeyUsedEvent("", apikeys.UsageReason_CUSTOMKEY, ""))
 	return eventPublisher
 }
