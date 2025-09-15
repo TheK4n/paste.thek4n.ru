@@ -14,12 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/config"
+	"github.com/thek4n/paste.thek4n.ru/internal/domain/domainerrors"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/event"
 	"github.com/thek4n/paste.thek4n.ru/internal/domain/objectvalue"
 	"github.com/thek4n/paste.thek4n.ru/internal/infrastructure/repository"
 )
 
-func TestCacheService_Serve(t *testing.T) {
+func TestCacheService_ServePrivileged(t *testing.T) {
 	t.Parallel()
 
 	publisher := event.NewPublisher()
@@ -32,56 +33,102 @@ func TestCacheService_Serve(t *testing.T) {
 	quotaRepo := repository.NewRedisQuotaRepository(quotaRedisClient, config.DefaultQuotaConfig{})
 	apikeyRepo := repository.NewRedisAPIKeyRORepository(apiKeyRedisClient)
 
-	apikeyService := TrueAPIKeyService{}
-
 	cacheValidationCfg := config.DefaultCacheValidationConfig{}
 
-	// Setup service
-	svc := NewCacheService(
+	svcAPIKeyDenier := NewCacheService(
 		recordRepo,
 		quotaRepo,
 		apikeyRepo,
-		apikeyService,
+		DenierAPIKeyServiceMock{},
 		publisher,
 		cacheValidationCfg,
 		config.DefaultQuotaConfig{},
 		MuteLogger{},
 	)
 
+	svcAPIKeyPasser := NewCacheService(
+		recordRepo,
+		quotaRepo,
+		apikeyRepo,
+		PasserAPIKeyServiceMock{},
+		publisher,
+		cacheValidationCfg,
+		config.DefaultQuotaConfig{},
+		MuteLogger{},
+	)
+
+	testBody := []byte("test")
+
 	t.Run("successful generation with correct values", func(t *testing.T) {
 		params := objectvalue.CacheRequestParams{
 			APIKey:             "",
 			RequestedKey:       "",
 			SourceIP:           "127.0.0.1",
-			Body:               []byte("test"),
+			Body:               testBody,
 			TTL:                cacheValidationCfg.DefaultTTL(),
-			BodyLen:            4,
+			BodyLen:            int64(len(testBody)),
 			RequestedKeyLength: cacheValidationCfg.DefaultKeyLength(),
-			Disposable:         1,
+			Disposable:         0,
 			IsURL:              false,
 		}
-		key, err := svc.Serve(params)
+		key, err := svcAPIKeyDenier.Serve(params)
 		require.NoError(t, err)
 
 		assert.NotEmpty(t, key)
 	})
 
-	t.Run("service returns correct requested key with apikey mock", func(t *testing.T) {
+	t.Run("service returns correct requested key with apikey mock-passer", func(t *testing.T) {
 		params := objectvalue.CacheRequestParams{
 			APIKey:             "non-empty",
 			RequestedKey:       "key",
 			SourceIP:           "127.0.0.1",
-			Body:               []byte("test"),
+			Body:               testBody,
 			TTL:                cacheValidationCfg.DefaultTTL(),
-			BodyLen:            4,
+			BodyLen:            int64(len(testBody)),
 			RequestedKeyLength: cacheValidationCfg.DefaultKeyLength(),
-			Disposable:         1,
+			Disposable:         0,
 			IsURL:              false,
 		}
-		key, err := svc.Serve(params)
+		key, err := svcAPIKeyPasser.Serve(params)
 		require.NoError(t, err)
 
 		assert.Equal(t, "key", string(key))
+	})
+
+	t.Run("service returns non authorized with apikey denier mock and requested custom key", func(t *testing.T) {
+		params := objectvalue.CacheRequestParams{
+			APIKey:             "",
+			RequestedKey:       "key",
+			SourceIP:           "127.0.0.1",
+			Body:               testBody,
+			TTL:                cacheValidationCfg.DefaultTTL(),
+			BodyLen:            int64(len(testBody)),
+			RequestedKeyLength: cacheValidationCfg.DefaultKeyLength(),
+			Disposable:         0,
+			IsURL:              false,
+		}
+		_, err := svcAPIKeyDenier.Serve(params)
+		assert.ErrorIs(t, err, domainerrors.ErrNonAuthorized)
+	})
+
+	t.Run("service successfully returns short key with passer apikey mock", func(t *testing.T) {
+		keyLength := 4
+
+		params := objectvalue.CacheRequestParams{
+			APIKey:             "non-empty",
+			RequestedKey:       "",
+			SourceIP:           "127.0.0.1",
+			Body:               testBody,
+			TTL:                0,
+			BodyLen:            int64(len(testBody)),
+			RequestedKeyLength: uint8(keyLength),
+			Disposable:         0,
+			IsURL:              false,
+		}
+		key, err := svcAPIKeyPasser.Serve(params)
+		require.NoError(t, err)
+
+		assert.Len(t, key, keyLength)
 	})
 }
 
@@ -119,30 +166,30 @@ func (l MuteLogger) Error(string, ...any) {}
 func (l MuteLogger) Info(string, ...any)  {}
 func (l MuteLogger) Warn(string, ...any)  {}
 
-type TrueAPIKeyService struct{}
+type PasserAPIKeyServiceMock struct{}
 
-func (s TrueAPIKeyService) Exists(context.Context, string) (bool, error) {
+func (s PasserAPIKeyServiceMock) Exists(context.Context, string) (bool, error) {
 	return true, nil
 }
 
-func (s TrueAPIKeyService) CheckValid(context.Context, string) (bool, error) {
+func (s PasserAPIKeyServiceMock) CheckValid(context.Context, string) (bool, error) {
 	return true, nil
 }
 
-func (s TrueAPIKeyService) GetID(context.Context, string) (string, error) {
+func (s PasserAPIKeyServiceMock) GetID(context.Context, string) (string, error) {
 	return "", nil
 }
 
-type FalseAPIKeyService struct{}
+type DenierAPIKeyServiceMock struct{}
 
-func (s FalseAPIKeyService) Exists(context.Context, string) (bool, error) {
+func (s DenierAPIKeyServiceMock) Exists(context.Context, string) (bool, error) {
 	return false, nil
 }
 
-func (s FalseAPIKeyService) CheckValid(context.Context, string) (bool, error) {
+func (s DenierAPIKeyServiceMock) CheckValid(context.Context, string) (bool, error) {
 	return false, nil
 }
 
-func (s FalseAPIKeyService) GetID(context.Context, string) (string, error) {
+func (s DenierAPIKeyServiceMock) GetID(context.Context, string) (string, error) {
 	return "", nil
 }
