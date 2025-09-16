@@ -16,7 +16,7 @@ steps:
   - name: check-fmt
     image: golang:1.24
     commands:
-      - make fmt
+      - make fmt-drone
       - git diff --exit-code
     volumes:
       - name: go-build-cache

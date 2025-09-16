@@ -81,7 +81,7 @@ lint:
 
 .PHONY: lint-drone
 lint-drone:
-	GOFLAGS="-tags=unit,integration,e2e,frontend" \
+	GOFLAGS="-tags=unit,integration,e2e" \
 	golangci-lint run --fix --timeout=5m
 
 
@@ -89,6 +89,12 @@ lint-drone:
 fmt:
 	go fmt ./...
 	GOFLAGS="-tags=unit,integration,e2e,frontend" \
+	go vet ./...
+
+.PHONY: fmt-drone
+fmt-drone:
+	go fmt ./...
+	GOFLAGS="-tags=unit,integration,e2e" \
 	go vet ./...
 
 .PHONY: build

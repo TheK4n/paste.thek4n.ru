@@ -27,7 +27,7 @@ func main() {
 
 	case "apikeys":
 		apikeysCommand(os.Args[2:])
-		fmt.Println("apikeys")
+		os.Exit(0)
 
 	case "ping":
 		pingCommand(os.Args[2:])
