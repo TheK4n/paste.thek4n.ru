@@ -16,6 +16,7 @@ FROM scratch
 
 COPY --from=builder /app/ /app
 
+ENV PATH="/app:$PATH"
 EXPOSE 80
 
-CMD ["/app/paste", "run", "--host", "0.0.0.0", "--port", "80", "--dbport", "6379", "--health", "--docs"]
+ENTRYPOINT ["/app/paste", "run", "--host", "0.0.0.0", "--port", "80", "--dbport", "6379", "--health", "--docs"]
