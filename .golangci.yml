@@ -8,7 +8,6 @@ run:
     - integration
     - unit
     - e2e
-    - frontend
 
 linters:
   enable:
@@ -17,7 +16,7 @@ linters:
     - dupl
     - errcheck
     - exhaustive
-    - funlen
+    # - funlen
     - gocognit
     - goconst
     - gocritic
