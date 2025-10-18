@@ -50,6 +50,7 @@ func (e *cacheError) Error() string {
 	if e.Err != nil {
 		return fmt.Sprintf("%s: %v", e.Message, e.Err)
 	}
+
 	return e.Message
 }
 
@@ -58,6 +59,7 @@ func (app *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 	req := cacheRequest{}
 	req.SourceIP = getClientIP(r)
 	req.ID = uuid.NewString()
+
 	var err error
 
 	logger := app.Logger.With("source_ip", req.SourceIP, "request_id", req.ID)
@@ -130,6 +132,7 @@ func (app *Handlers) Cache(w http.ResponseWriter, r *http.Request) {
 
 func (app *Handlers) parseAndValidateRequestParams(urlQuery url.Values) (cacheRequestParams, error) {
 	p := cacheRequestParams{}
+
 	var err error
 
 	p.TTL, err = app.getTTL(urlQuery)
@@ -300,6 +303,7 @@ func handleCacheError(w http.ResponseWriter, err error, logger *slog.Logger) {
 	}
 
 	w.WriteHeader(cacheErr.StatusCode)
+
 	if cacheErr.Message != "" {
 		if _, err := fmt.Fprint(w, cacheErr.Message); err != nil {
 			logger.Error("Error on answer error",
@@ -373,8 +377,9 @@ func getDisposable(v url.Values) (int, error) {
 		return 0, fmt.Errorf("disposable argument can`t be less then zero")
 	}
 
-	if disposable > 255 {
-		return 0, fmt.Errorf("disposable argument can`t be more then 255")
+	maxDisposable := 255
+	if disposable > maxDisposable {
+		return 0, fmt.Errorf("disposable argument can`t be more then %d", maxDisposable)
 	}
 
 	return disposable, nil

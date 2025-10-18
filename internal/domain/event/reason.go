@@ -22,6 +22,7 @@ func NewAPIKeyUsedEvent(
 		name:            "usagereason.new",
 		isAsynchronious: true,
 	}
+
 	return APIKeyUsedEvent{
 		baseEvent: baseEvent,
 		apikeyID:  apikeyID,

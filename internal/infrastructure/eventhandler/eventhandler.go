@@ -31,8 +31,7 @@ func NewRabbitMQEventHandler(
 
 // Notify implementation of abstract method EventHandler.Notify.
 func (h RabbitMQEventHandler) Notify(ev event.Event) {
-	switch e := ev.(type) {
-	case event.APIKeyUsedEvent:
+	if e, ok := ev.(event.APIKeyUsedEvent); ok {
 		err := h.sendAPIKeyUsageLog(e.APIKeyID(), e.Reason(), e.FromIP())
 		if err != nil {
 			h.logger.Warn("Error on sending apikey usage message", "apikey", e.APIKeyID(), "error", err)
@@ -49,6 +48,7 @@ func (h *RabbitMQEventHandler) sendAPIKeyUsageLog(apikeyID string, reason apikey
 		Reason:   reason,
 		FromIP:   fromIP,
 	}
+
 	data, err := proto.Marshal(a)
 	if err != nil {
 		return fmt.Errorf("can`t marshal record: %w", err)

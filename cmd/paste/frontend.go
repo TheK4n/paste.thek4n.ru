@@ -24,10 +24,12 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+
 	indexFS, err := fs.Sub(indexFS, frontendDirectory)
 	if err != nil {
 		panic(err)
 	}
+
 	mux.Handle("GET /frontend/assets/", http.StripPrefix("/frontend/assets", http.FileServerFS(assetsFS)))
 	mux.Handle("GET /{$}", http.FileServerFS(indexFS))
 }

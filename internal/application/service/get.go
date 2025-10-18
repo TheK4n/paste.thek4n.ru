@@ -30,7 +30,9 @@ type GetBodyAnswer struct {
 
 // GetBody returns GetBodyAnswer. If not exists returns ErrRecordNotFound as error.
 func (h *GetService) GetBody(key objectvalue.RecordKey) (GetBodyAnswer, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	timeout := 3
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 	defer cancel()
 
 	record, err := h.get(ctx, key)
@@ -56,7 +58,9 @@ func (h *GetService) GetBody(key objectvalue.RecordKey) (GetBodyAnswer, error) {
 
 // GetClicks returns clicks number. If not exists returns ErrRecordNotFound as error.
 func (h *GetService) GetClicks(key objectvalue.RecordKey) (uint32, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	timeout := 3
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 	defer cancel()
 
 	record, err := h.get(ctx, key)

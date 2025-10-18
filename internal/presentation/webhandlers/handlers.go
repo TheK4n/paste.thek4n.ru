@@ -56,6 +56,7 @@ func getClientIP(r *http.Request) string {
 	if err != nil {
 		return r.RemoteAddr
 	}
+
 	return ip
 }
 

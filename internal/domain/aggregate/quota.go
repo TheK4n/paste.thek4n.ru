@@ -13,6 +13,7 @@ type Quota struct {
 // NewQuota constructor.
 func NewQuota(ip objectvalue.QuotaSourceIP, def uint32) Quota {
 	q := objectvalue.NewQuota(def)
+
 	return Quota{
 		sourceIP: ip,
 		quota:    q,

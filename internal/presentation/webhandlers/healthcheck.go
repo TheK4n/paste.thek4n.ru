@@ -37,6 +37,7 @@ func (app *Handlers) Healthcheck(w http.ResponseWriter, r *http.Request) {
 			"source_ip", remoteAddr,
 			"answer_code", statusCode,
 		)
+
 		return
 	}
 }
@@ -56,5 +57,6 @@ func sendJSONResponse(
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		return fmt.Errorf("failed to encode response: %w", err)
 	}
+
 	return nil
 }

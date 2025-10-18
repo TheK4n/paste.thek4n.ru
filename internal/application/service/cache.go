@@ -54,11 +54,14 @@ func NewCacheService(
 
 // Serve service method that serve cache request.
 func (s *CacheService) Serve(params objectvalue.CacheRequestParams) (objectvalue.RecordKey, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	timeoutSeconds := 3
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSeconds)*time.Second)
 	defer cancel()
 
 	privileged := false
 	apikeyID := ""
+
 	var err error
 
 	if params.APIKey != "" {
@@ -79,6 +82,7 @@ func (s *CacheService) Serve(params objectvalue.CacheRequestParams) (objectvalue
 		}
 
 		s.logAPIKeyUsage(apikeyID, params)
+
 		return s.servePrivileged(ctx, params)
 	}
 
@@ -162,7 +166,9 @@ func (s *CacheService) getRecordKey(ctx context.Context, params objectvalue.Cach
 		keyLength = params.RequestedKeyLength
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	timeoutSeconds := 3
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSeconds)*time.Second)
 	defer cancel()
 
 	newRecordKey, err := s.recordRepository.GenerateUniqueKey(ctx, keyLength, s.validationConfig.MaxKeyLength())
@@ -222,9 +228,11 @@ func (s *CacheService) manageQuota(ctx context.Context, sourceIP objectvalue.Quo
 
 	quota.Sub()
 	s.logger.Info("Sub quota", "source_ip", string(sourceIP), "quota", quota.Value())
+
 	if quota.Exhausted() {
 		return domainerrors.ErrQuotaExhausted
 	}
+
 	err = s.quotaRepository.SetByID(ctx, sourceIP, quota)
 	if err != nil {
 		s.logger.Warn("Fail to set quota", "error", err.Error(), "source_ip", string(sourceIP))

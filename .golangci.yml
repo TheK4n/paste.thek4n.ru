@@ -2,18 +2,35 @@ version: "2"
 run:
   tests: false
   issues-exit-code: 1
+  allow-parallel-runners: true
+  allow-serial-runners: true
+  build-tags:
+    - integration
+    - unit
+    - e2e
+    - frontend
 
 linters:
   enable:
     - bodyclose
+    - dogsled
+    - dupl
+    - errcheck
     - exhaustive
+    - funlen
+    - gocognit
     - goconst
+    - gocritic
+    - gocyclo
     - godot
     - godox
     - gomoddirectives
+    - gomodguard
     - goprintffuncname
     - gosec
+    - ineffassign
     - misspell
+    - mnd
     - nakedret
     - nestif
     - nilerr
@@ -22,11 +39,13 @@ linters:
     - revive
     - rowserrcheck
     - sqlclosecheck
+    - staticcheck
     - tparallel
     - unconvert
     - unparam
     - whitespace
     - wrapcheck
+    - wsl_v5
   exclusions:
     generated: lax
     presets:
@@ -50,8 +69,6 @@ linters-settings:
   gocritic:
     enabled-tags:
       - diagnostic
-      - experimental
-      - opinionated
       - performance
       - style
   govet:
@@ -61,6 +78,10 @@ linters-settings:
   nolintlint:
     require-explanation: true
     require-specific: true
+  gosec:
+    includes: []
+  staticcheck:
+    checks: ["*"]
 
 issues:
   max-issues-per-linter: 0

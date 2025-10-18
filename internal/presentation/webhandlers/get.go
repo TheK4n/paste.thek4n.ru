@@ -53,16 +53,20 @@ func (app *Handlers) Get(w http.ResponseWriter, r *http.Request) {
 					"answer_code", http.StatusInternalServerError,
 				)
 				w.WriteHeader(http.StatusInternalServerError)
+
 				return
 			}
+
 			return
 		}
+
 		logger.Error(
 			"Fail to get key",
 			"error", err,
 			"answer_code", http.StatusInternalServerError,
 		)
 		w.WriteHeader(http.StatusInternalServerError)
+
 		return
 	}
 
@@ -71,6 +75,7 @@ func (app *Handlers) Get(w http.ResponseWriter, r *http.Request) {
 		answer = fmt.Appendf(answer, redirectBody, string(record.Body))
 		w.Header().Set("content-type", http.DetectContentType(answer))
 		http.Redirect(w, r, strings.TrimSpace(string(record.Body)), http.StatusSeeOther)
+
 		_, writeErr := w.Write(answer)
 		if writeErr != nil {
 			logger.Error(
@@ -79,16 +84,20 @@ func (app *Handlers) Get(w http.ResponseWriter, r *http.Request) {
 				"answer_code", http.StatusInternalServerError,
 			)
 			w.WriteHeader(http.StatusInternalServerError)
+
 			return
 		}
+
 		logger.Info(
 			"Redirect to url",
 		)
+
 		return
 	}
 
 	w.Header().Set("content-type", http.DetectContentType(record.Body))
 	w.WriteHeader(http.StatusOK)
+
 	_, writeErr := w.Write(record.Body)
 	if writeErr != nil {
 		logger.Error(
@@ -97,8 +106,10 @@ func (app *Handlers) Get(w http.ResponseWriter, r *http.Request) {
 			"answer_code", http.StatusInternalServerError,
 		)
 		w.WriteHeader(http.StatusInternalServerError)
+
 		return
 	}
+
 	logger.Info(
 		"Got content",
 	)
@@ -137,16 +148,20 @@ func (app *Handlers) GetClicks(w http.ResponseWriter, r *http.Request) {
 					"answer_code", http.StatusInternalServerError,
 				)
 				w.WriteHeader(http.StatusInternalServerError)
+
 				return
 			}
+
 			return
 		}
+
 		logger.Error(
 			"Fail to get key clicks",
 			"error", err,
 			"answer_code", http.StatusInternalServerError,
 		)
 		w.WriteHeader(http.StatusInternalServerError)
+
 		return
 	}
 
@@ -162,8 +177,10 @@ func (app *Handlers) GetClicks(w http.ResponseWriter, r *http.Request) {
 			"answer_code", http.StatusInternalServerError,
 		)
 		w.WriteHeader(http.StatusInternalServerError)
+
 		return
 	}
+
 	logger.Info(
 		"Got clicks",
 	)

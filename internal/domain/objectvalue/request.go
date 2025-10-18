@@ -19,6 +19,7 @@ type ExpirationDate struct {
 // NewExpirationDateFromTTL constructor.
 func NewExpirationDateFromTTL(t time.Duration) ExpirationDate {
 	eternal := t == 0
+
 	return ExpirationDate{
 		date:    time.Now().Add(t),
 		eternal: eternal,
@@ -30,6 +31,7 @@ func (e ExpirationDate) Expired() bool {
 	if e.eternal {
 		return false
 	}
+
 	return time.Now().After(e.date)
 }
 
@@ -43,6 +45,7 @@ func (e ExpirationDate) Until() time.Duration {
 	if e.eternal {
 		return 0
 	}
+
 	return time.Until(e.date)
 }
 
@@ -58,6 +61,7 @@ func NewDisposableCounter(value uint8, eternal bool) DisposableCounter {
 		value:   value,
 		eternal: eternal,
 	}
+
 	return c
 }
 
@@ -77,6 +81,7 @@ func (d DisposableCounter) Sub() DisposableCounter {
 	}
 
 	d.value--
+
 	return d
 }
 
@@ -90,6 +95,7 @@ func (d DisposableCounter) Exhausted() bool {
 	if d.eternal {
 		return false
 	}
+
 	return d.value < 1
 }
 

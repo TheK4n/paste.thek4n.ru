@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-var usageMessage = `usage: %s <command>
+const UsageMessage = `usage: %s <command>
 
 Commands:
 	run       Run paste server.
@@ -14,27 +14,33 @@ Commands:
 	ping      Ping command. Can be used for check app health.
 `
 
+const (
+	SuccessCode = 0
+	ErrorCode   = 1
+)
+
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, usageMessage, os.Args[0])
-		os.Exit(1)
+	oneArg := 2
+	if len(os.Args) < oneArg {
+		fmt.Fprintf(os.Stderr, UsageMessage, os.Args[0])
+		os.Exit(ErrorCode)
 	}
 
 	switch os.Args[1] {
 	case "run":
 		runServer(os.Args[2:])
-		os.Exit(0)
+		os.Exit(SuccessCode)
 
 	case "apikeys":
 		apikeysCommand(os.Args[2:])
-		os.Exit(0)
+		os.Exit(SuccessCode)
 
 	case "ping":
 		pingCommand(os.Args[2:])
-		os.Exit(0)
+		os.Exit(SuccessCode)
 
 	default:
-		fmt.Fprintf(os.Stderr, usageMessage, os.Args[0])
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, UsageMessage, os.Args[0])
+		os.Exit(ErrorCode)
 	}
 }

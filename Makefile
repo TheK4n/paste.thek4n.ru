@@ -76,12 +76,10 @@ test:
 
 .PHONY: lint
 lint:
-	GOFLAGS="-tags=unit,integration,e2e,frontend" \
 	go tool golangci-lint run --fix --new-from-rev HEAD --timeout=5m
 
 .PHONY: lint-drone
 lint-drone:
-	GOFLAGS="-tags=unit,integration,e2e" \
 	golangci-lint run --fix --timeout=5m
 
 
@@ -90,6 +88,7 @@ fmt:
 	go fmt ./...
 	GOFLAGS="-tags=unit,integration,e2e,frontend" \
 	go vet ./...
+	go tool golangci-lint fmt
 
 .PHONY: fmt-drone
 fmt-drone:

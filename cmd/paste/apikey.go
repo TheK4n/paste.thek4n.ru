@@ -19,13 +19,15 @@ type apikeysOptions struct {
 	DBHost string `long:"dbhost" default:"localhost" description:"Database host"`
 }
 
+const ParseErrorCode = 2
+
 func apikeysCommand(args []string) {
 	var opts apikeysOptions
 
 	args, err := flags.NewParser(&opts, flags.Default).ParseArgs(args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Parse params error: %s\n", err)
-		os.Exit(2)
+		os.Exit(ParseErrorCode)
 	}
 
 	if len(args) < 1 {
@@ -40,72 +42,102 @@ func apikeysCommand(args []string) {
 		repository.NewRedisAPIKeyWORepository(client),
 	)
 
+	dispatch(args, s)
+	os.Exit(SuccessCode)
+}
+
+func dispatch(args []string, s *service.APIKeysService) {
 	switch args[0] {
 	case "list":
-		apikeys, err := s.FetchAll()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Fail to generate apikey: %s\n", err)
-			os.Exit(2)
-		}
-
-		fmt.Print(columnT(fmt.Sprintf("%s\n%s", apiKeysListHeader(), printAPIKeys(apikeys))))
+		cmdlist(s)
 
 	case "gen":
-		apikey, err := s.GenerateAPIKey()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Fail to generate apikey\n")
-			os.Exit(2)
-		}
-
-		fmt.Print(columnT(fmt.Sprintf("Key\tId\tStatus\n%s", formatAPIKeyString(apikey))))
+		cmdgen(s)
 
 	case "revoke":
-		args = args[1:]
-		if len(args) < 1 {
-			fmt.Fprintf(os.Stderr, "Parse params error: apikey id not provided\n")
-			os.Exit(2)
-		}
-
-		err := s.InvalidateAPIKey(args[0])
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Fail to invalidate apikey: %s\n", err)
-			os.Exit(2)
-		}
+		cmdrevoke(args, s)
 
 	case "reauthorize":
-		args = args[1:]
-		if len(args) < 1 {
-			fmt.Fprintf(os.Stderr, "Parse params error: apikey id not provided\n")
-			os.Exit(2)
-		}
-
-		err := s.ReauthorizeAPIKey(args[0])
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Fail to reauthorize apikey: %s\n", err)
-			os.Exit(2)
-		}
+		cmdreauthorize(args, s)
 
 	case "rm":
-		args = args[1:]
-		if len(args) < 1 {
-			fmt.Fprintf(os.Stderr, "Parse params error: apikey id not provided\n")
-			os.Exit(2)
-		}
-
-		err := s.RemoveAPIKey(args[0])
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Fail to remove apikey: %s", err)
-			os.Exit(2)
-		}
+		cmdrm(args, s)
 
 	default:
 		printUsage()
 		os.Exit(1)
 	}
 
+	os.Exit(0)
+}
+
+func cmdlist(s *service.APIKeysService) {
+	apikeys, err := s.FetchAll()
 	if err != nil {
-		fmt.Printf("Error: %s", err)
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "Fail to generate apikey: %s\n", err)
+		os.Exit(ParseErrorCode)
+	}
+
+	fmt.Print(columnT(fmt.Sprintf("%s\n%s", apiKeysListHeader(), printAPIKeys(apikeys))))
+
+	os.Exit(0)
+}
+
+func cmdgen(s *service.APIKeysService) {
+	apikey, err := s.GenerateAPIKey()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Fail to generate apikey\n")
+		os.Exit(ParseErrorCode)
+	}
+
+	fmt.Print(columnT(fmt.Sprintf("Key\tId\tStatus\n%s", formatAPIKeyString(apikey))))
+
+	os.Exit(0)
+}
+
+func cmdrevoke(args []string, s *service.APIKeysService) {
+	args = args[1:]
+	if len(args) < 1 {
+		fmt.Fprintf(os.Stderr, "Parse params error: apikey id not provided\n")
+		os.Exit(ParseErrorCode)
+	}
+
+	err := s.InvalidateAPIKey(args[0])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Fail to invalidate apikey: %s\n", err)
+		os.Exit(ParseErrorCode)
+	}
+
+	os.Exit(0)
+}
+
+func cmdreauthorize(args []string, s *service.APIKeysService) {
+	args = args[1:]
+	if len(args) < 1 {
+		fmt.Fprintf(os.Stderr, "Parse params error: apikey id not provided\n")
+		os.Exit(ParseErrorCode)
+	}
+
+	err := s.ReauthorizeAPIKey(args[0])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Fail to reauthorize apikey: %s\n", err)
+		os.Exit(ParseErrorCode)
+	}
+
+	os.Exit(0)
+}
+
+func cmdrm(args []string, s *service.APIKeysService) {
+	args = args[1:]
+	if len(args) < 1 {
+		fmt.Fprintf(os.Stderr, "Parse params error: apikey id not provided\n")
+		os.Exit(ParseErrorCode)
+	}
+
+	err := s.RemoveAPIKey(args[0])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Fail to remove apikey: %s", err)
+		os.Exit(ParseErrorCode)
 	}
 
 	os.Exit(0)
@@ -142,6 +174,7 @@ func formatAPIKeyString(apikey aggregate.APIKey) string {
 	if !apikey.Valid() {
 		validString = "❌invalid"
 	}
+
 	return fmt.Sprintf("%s\t%s\t%s", apikey.Key(), apikey.PublicID(), validString)
 }
 
@@ -153,6 +186,7 @@ func columnT(input string) string {
 	lines := strings.Split(strings.TrimSpace(input), "\n")
 
 	var rows [][]string
+
 	maxCols := 0
 
 	for _, line := range lines {
@@ -181,13 +215,16 @@ func columnT(input string) string {
 	}
 
 	var result strings.Builder
+
 	for i, row := range rows {
 		for j, field := range row {
 			if j > 0 {
 				result.WriteString("  ")
 			}
+
 			fmt.Fprintf(&result, "%-*s", colWidths[j], field)
 		}
+
 		if i < len(rows)-1 {
 			result.WriteString("\n")
 		}
@@ -197,14 +234,20 @@ func columnT(input string) string {
 }
 
 func newRedisClientAPIKeys(opts *apikeysOptions) *redis.Client {
+	poolsize := 100
+	db := 2
+	maxRetries := 5
+	dialTimeoutSeconds := 10
+	writeTimeoutSeconds := 5
+
 	return redis.NewClient(&redis.Options{
 		Addr:         fmt.Sprintf("%s:%d", opts.DBHost, opts.DBPort),
-		PoolSize:     100,
+		PoolSize:     poolsize,
 		Password:     "",
 		Username:     "",
-		DB:           2,
-		MaxRetries:   5,
-		DialTimeout:  10 * time.Second,
-		WriteTimeout: 5 * time.Second,
+		DB:           db,
+		MaxRetries:   maxRetries,
+		DialTimeout:  time.Duration(dialTimeoutSeconds) * time.Second,
+		WriteTimeout: time.Duration(writeTimeoutSeconds) * time.Second,
 	})
 }

@@ -50,6 +50,7 @@ func (r *RedisQuotaRepository) GetByID(ctx context.Context, id objectvalue.Quota
 	}
 
 	q := aggregate.NewQuota(id, quota.Value)
+
 	return q, nil
 }
 
@@ -59,8 +60,8 @@ func (r *RedisQuotaRepository) SetByID(ctx context.Context, id objectvalue.Quota
 	script := `
 	   redis.call("HSET", KEYS[1], ARGV[1], ARGV[2])
 	   redis.call("EXPIRE", KEYS[1], ARGV[3])
-	   return 1
-   `
+	   return 1`
+
 	err := r.client.Eval(ctx, script, []string{string(id)}, "value", q.Value(), int(r.config.QuotaResetPeriod().Seconds())).Err()
 	if err != nil {
 		return fmt.Errorf("fail to set new quota key: %w", err)

@@ -27,12 +27,12 @@ func pingCommand(args []string) {
 	args, err := flags.NewParser(&opts, flags.Default).ParseArgs(args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Parse params error: %s\n", err)
-		os.Exit(2)
+		os.Exit(ErrorCode)
 	}
 
 	if len(args) < 1 {
 		fmt.Fprintln(os.Stderr, "Parse params error: URL argument not provided")
-		os.Exit(2)
+		os.Exit(ErrorCode)
 	}
 
 	switch opts.Method {
@@ -49,16 +49,17 @@ func pingCommand(args []string) {
 
 	if err != nil {
 		fmt.Printf("Error: %s", err)
-		os.Exit(1)
+		os.Exit(ErrorCode)
 	}
 
-	os.Exit(0)
+	os.Exit(SuccessCode)
 }
 
 func jsonHealthcheck(url string) *http.Response {
 	resp := simpleHealthcheck200(url)
 
 	healthCheckResp := healthcheckResponse{}
+
 	err := json.NewDecoder(resp.Body).Decode(&healthCheckResp)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error reading server answer: ", err)

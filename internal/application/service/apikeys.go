@@ -33,7 +33,9 @@ func NewAPIKeysService(
 
 // FetchAll fetch all apikeys.
 func (s *APIKeysService) FetchAll() ([]aggregate.APIKey, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	timeout := 3
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 	defer cancel()
 
 	apikeys, err := s.RORepository.GetAll(ctx)
@@ -46,7 +48,9 @@ func (s *APIKeysService) FetchAll() ([]aggregate.APIKey, error) {
 
 // InvalidateAPIKey invalidates apikey by id.
 func (s *APIKeysService) InvalidateAPIKey(id string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	timeout := 3
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 	defer cancel()
 
 	apikey, err := s.RORepository.GetByID(ctx, id)
@@ -66,6 +70,7 @@ func (s *APIKeysService) InvalidateAPIKey(id string) error {
 // GenerateAPIKey generates new valid APIKey.
 func (s *APIKeysService) GenerateAPIKey() (aggregate.APIKey, error) {
 	apikeyLength := 32
+
 	newAPIkey, err := randomHex(apikeyLength)
 	if err != nil {
 		return aggregate.APIKey{}, fmt.Errorf("fail to generate api key: %w", err)
@@ -78,7 +83,9 @@ func (s *APIKeysService) GenerateAPIKey() (aggregate.APIKey, error) {
 
 	apikey := aggregate.NewAPIKey(objectvalue.APIKeyID(newAPIkeyID), newAPIkey, true)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	timeout := 3
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 	defer cancel()
 
 	err = s.WORepository.SetByID(ctx, newAPIkey, apikey)
@@ -91,7 +98,9 @@ func (s *APIKeysService) GenerateAPIKey() (aggregate.APIKey, error) {
 
 // ReauthorizeAPIKey reauthorizes apikey by id.
 func (s *APIKeysService) ReauthorizeAPIKey(id string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	timeout := 3
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 	defer cancel()
 
 	apikey, err := s.RORepository.GetByID(ctx, id)
@@ -110,20 +119,27 @@ func (s *APIKeysService) ReauthorizeAPIKey(id string) error {
 
 // RemoveAPIKey removes apikey by id.
 func (s *APIKeysService) RemoveAPIKey(id string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	timeout := 3
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 	defer cancel()
 
 	if err := s.WORepository.RemoveByID(ctx, id); err != nil {
 		return fmt.Errorf("fail to remove apikey: %w", err)
 	}
+
 	return nil
 }
 
 func randomHex(n int) (string, error) {
-	bytes := make([]byte, (n+1)/2)
+	half := 2
+	bytes := make([]byte, (n+1)/half)
+
 	if _, err := rand.Read(bytes); err != nil {
 		return "", fmt.Errorf("fail to gen random: %w", err)
 	}
+
 	hexString := hex.EncodeToString(bytes)
+
 	return hexString[:n], nil
 }

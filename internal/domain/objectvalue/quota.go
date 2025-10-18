@@ -15,6 +15,7 @@ func NewQuota(defaultValue uint32) Quota {
 		value:    defaultValue,
 		_default: defaultValue,
 	}
+
 	return q
 }
 
@@ -23,7 +24,9 @@ func (q Quota) Sub() Quota {
 	if q.value == 0 {
 		return q
 	}
+
 	q.value--
+
 	return q
 }
 

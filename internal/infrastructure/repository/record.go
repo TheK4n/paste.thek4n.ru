@@ -55,11 +55,13 @@ func (r *RedisRecordRepository) GetByKey(ctx context.Context, key objectvalue.Re
 	if err != nil {
 		return aggregate.Record{}, fmt.Errorf("fail to check record existing by key '%s': %w", key, err)
 	}
+
 	if !exists {
 		return aggregate.Record{}, domainerrors.ErrRecordNotFound
 	}
 
 	var record redisKeyRecord
+
 	err = r.client.HGetAll(ctx, string(key)).Scan(&record)
 	if err != nil {
 		return aggregate.Record{}, fmt.Errorf("fail to get record by key '%s': %w", key, err)
@@ -114,6 +116,7 @@ func (r *RedisRecordRepository) SetByKey(ctx context.Context, key objectvalue.Re
 
 	if !record.ExpirationDateEternal() {
 		ttl := record.TTL()
+
 		err := r.client.Expire(ctx, string(key), ttl).Err()
 		if err != nil {
 			return fmt.Errorf("failed to set expire for key '%s': %w", key, err)
@@ -147,7 +150,9 @@ func (r *RedisRecordRepository) GenerateUniqueKey(
 	minLength, maxLength uint8,
 ) (objectvalue.RecordKey, error) {
 	var err error
+
 	var key string
+
 	currentAttemptsCountdown := r.config.AttemptsToIncreaseKeyMinLength()
 
 	// initial true for start cycle
@@ -163,10 +168,12 @@ func (r *RedisRecordRepository) GenerateUniqueKey(
 		if err != nil {
 			return "", fmt.Errorf("fail generate key: %w", err)
 		}
+
 		exists, err = r.Exists(ctx, objectvalue.RecordKey(key))
 		if err != nil {
 			return "", fmt.Errorf("fail to check is key '%s' exists: %w", key, err)
 		}
+
 		currentAttemptsCountdown--
 
 		if currentAttemptsCountdown < 1 {
@@ -192,6 +199,7 @@ func generateKey(length uint8, charset string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("failure generate random number: %w", err)
 		}
+
 		result[i] = charset[nBig.Int64()]
 	}
 
@@ -201,9 +209,11 @@ func generateKey(length uint8, charset string) (string, error) {
 func compress(data []byte) ([]byte, error) {
 	buf := bufferPool.Get().(*bytes.Buffer)
 	defer bufferPool.Put(buf)
+
 	buf.Reset()
 
-	buf.Grow(len(data) / 2)
+	half := 2
+	buf.Grow(len(data) / half)
 
 	gz, err := gzip.NewWriterLevel(buf, gzip.BestCompression)
 	if err != nil {
@@ -229,8 +239,11 @@ func decompress(data []byte, limit int64) ([]byte, error) {
 
 	buf := bufferPool.Get().(*bytes.Buffer)
 	defer bufferPool.Put(buf)
+
 	buf.Reset()
-	buf.Grow(len(data) * 2)
+
+	half := 2
+	buf.Grow(len(data) * half)
 
 	_, err = io.CopyN(buf, gz, limit)
 	if !errors.Is(err, io.EOF) && err != nil {

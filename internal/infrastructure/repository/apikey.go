@@ -49,16 +49,22 @@ func (r *RedisAPIKeyRORepository) GetAll(ctx context.Context) ([]aggregate.APIKe
 	var apikeys []aggregate.APIKey
 
 	var cursor uint64
+
+	chunk := 100
+
 	for {
 		var keys []string
+
 		var err error
-		keys, cursor, err = r.client.Scan(ctx, cursor, "*", 100).Result()
+
+		keys, cursor, err = r.client.Scan(ctx, cursor, "*", int64(chunk)).Result()
 		if err != nil {
 			return nil, fmt.Errorf("fail to scan for apikeys: %w", err)
 		}
 
 		for _, key := range keys {
 			var record redisAPIKeyRecord
+
 			err := r.client.HGetAll(ctx, key).Scan(&record)
 			if err != nil {
 				return nil, fmt.Errorf("fail to scan apikey record: %w", err)
@@ -68,6 +74,7 @@ func (r *RedisAPIKeyRORepository) GetAll(ctx context.Context) ([]aggregate.APIKe
 			if err != nil {
 				return nil, fmt.Errorf("fail to parse apikey record id for key: %w", err)
 			}
+
 			rapikey := aggregate.NewAPIKey(rid, key, record.Valid)
 
 			apikeys = append(apikeys, rapikey)

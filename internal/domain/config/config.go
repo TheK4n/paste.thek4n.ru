@@ -47,7 +47,8 @@ func (c DefaultCacheValidationConfig) UnprivilegedMaxBodySize() int64 {
 
 // PrivilegedMaxBodySize max body size for privileged.
 func (c DefaultCacheValidationConfig) PrivilegedMaxBodySize() int64 {
-	return 100 * oneMebibyte
+	maxBodySize := 100
+	return int64(maxBodySize) * oneMebibyte
 }
 
 // MinTTL min ttl.
@@ -72,22 +73,26 @@ func (c DefaultCacheValidationConfig) PrivilegedMaxTTL() time.Duration {
 
 // MaxKeyLength max key length.
 func (c DefaultCacheValidationConfig) MaxKeyLength() uint8 {
-	return 20
+	maxKeyLength := 20
+	return uint8(maxKeyLength)
 }
 
 // DefaultKeyLength default key length.
 func (c DefaultCacheValidationConfig) DefaultKeyLength() uint8 {
-	return 14
+	defaultKeyLength := 14
+	return uint8(defaultKeyLength)
 }
 
 // UnprivilegedMinKeyLength min key length for unprivileged.
 func (c DefaultCacheValidationConfig) UnprivilegedMinKeyLength() uint8 {
-	return 8
+	minKeyLength := 8
+	return uint8(minKeyLength)
 }
 
 // PrivilegedMinKeyLength min key length for privileged.
 func (c DefaultCacheValidationConfig) PrivilegedMinKeyLength() uint8 {
-	return 3
+	minKeyLength := 3
+	return uint8(minKeyLength)
 }
 
 // AllowedKeyChars allowed charset for key generation.
@@ -105,7 +110,8 @@ func (c DefaultQuotaConfig) QuotaResetPeriod() time.Duration {
 
 // Quota default quota for quota reset period.
 func (c DefaultQuotaConfig) Quota() uint32 {
-	return 50
+	quota := 50
+	return uint32(quota)
 }
 
 // DefaultCachingConfig contains getters for defaults caching config.
@@ -113,17 +119,20 @@ type DefaultCachingConfig struct{}
 
 // CompressThresholdBytes when body need to compress.
 func (c DefaultCachingConfig) CompressThresholdBytes() uint16 {
-	return 4096
+	bytes4 := 4096
+	return uint16(bytes4)
 }
 
 // MaxBodySize max body size.
 func (c DefaultCachingConfig) MaxBodySize() int64 {
-	return 100 * oneMebibyte
+	maxBodySize := 100
+	return int64(maxBodySize) * oneMebibyte
 }
 
 // AttemptsToIncreaseKeyMinLength number of attempts when key length is grow.
 func (c DefaultCachingConfig) AttemptsToIncreaseKeyMinLength() uint8 {
-	return 20
+	attempts := 20
+	return uint8(attempts)
 }
 
 // KeysCharset default key generation charset.

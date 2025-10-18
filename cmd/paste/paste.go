@@ -145,11 +145,14 @@ func provideLoggerHandler(opts *pasteOptions) (slog.Handler, error) {
 			if a.Key == slog.LevelKey {
 				level := a.Value.Any().(slog.Level)
 				levelLabel, exists := levelNames[level]
+
 				if !exists {
 					levelLabel = level.String()
 				}
+
 				a.Value = slog.StringValue(levelLabel)
 			}
+
 			return a
 		},
 	}
@@ -157,6 +160,7 @@ func provideLoggerHandler(opts *pasteOptions) (slog.Handler, error) {
 	if opts.Logger == "plain" {
 		return slog.NewTextHandler(os.Stdout, handlerOptions), nil
 	}
+
 	if opts.Logger == "json" {
 		return slog.NewJSONHandler(os.Stdout, handlerOptions), nil
 	}
@@ -192,6 +196,7 @@ func provideBrokerChannel(opts *pasteOptions, logger *slog.Logger) (*amqp.Channe
 	}
 
 	loggerb.Debug("Successfully initialized amqp broker channel")
+
 	return brokerChannel, nil
 }
 
@@ -199,19 +204,23 @@ func provideEventPublisher(brokerChannel *amqp.Channel, logger *slog.Logger) *ev
 	eventPublisher := event.NewPublisher()
 	rbmq := eventhandler.NewRabbitMQEventHandler(brokerChannel, logger)
 	eventPublisher.Subscribe(rbmq, event.NewAPIKeyUsedEvent("", apikeys.UsageReason_CUSTOMKEY, ""))
+
 	return eventPublisher
 }
 
 func provideRecordsClient(opts *pasteOptions) *redis.Client {
-	return newRedisClient(opts, 0)
+	dbnum := 0
+	return newRedisClient(opts, dbnum)
 }
 
 func provideQuotaClient(opts *pasteOptions) *redis.Client {
-	return newRedisClient(opts, 1)
+	dbnum := 1
+	return newRedisClient(opts, dbnum)
 }
 
 func provideAPIKeyClient(opts *pasteOptions) *redis.Client {
-	return newRedisClient(opts, 2)
+	dbnum := 2
+	return newRedisClient(opts, dbnum)
 }
 
 func provideRecordRepository(params struct {
@@ -220,6 +229,7 @@ func provideRecordRepository(params struct {
 },
 ) *repository.RedisRecordRepository {
 	cachingConfig := config.DefaultCachingConfig{}
+
 	return repository.NewRedisRecordRepository(
 		params.Client,
 		cachingConfig,
@@ -242,6 +252,7 @@ func provideQuotaRepository(params struct {
 },
 ) *repository.RedisQuotaRepository {
 	quotaConfig := config.DefaultQuotaConfig{}
+
 	return repository.NewRedisQuotaRepository(
 		params.Client,
 		quotaConfig,
@@ -312,6 +323,7 @@ func provideServer(
 	if opts.EnableHealthcheck {
 		mux.HandleFunc("GET /health/{$}", handlers.Healthcheck)
 	}
+
 	if opts.EnableInteractiveDocs {
 		mux.HandleFunc("GET /docs/{$}", handlers.DocsHandler)
 		mux.Handle("/docs/static/", handlers.DocsStaticHandler())
@@ -319,9 +331,11 @@ func provideServer(
 
 	hostport := fmt.Sprintf("%s:%d", opts.Host, opts.Port)
 
+	timeout := 3
+
 	return &http.Server{
 		Addr:              hostport,
-		ReadHeaderTimeout: 3 * time.Second,
+		ReadHeaderTimeout: time.Duration(timeout) * time.Second,
 		Handler:           mux,
 	}
 }
@@ -340,6 +354,7 @@ func run(config digConfig) error {
 	)
 
 	err := <-serverErrorCh
+
 	return fmt.Errorf("server error: %w", err)
 }
 
@@ -356,34 +371,44 @@ func (o *pasteOptions) getLogLevel() slog.Level {
 }
 
 func newRedisClient(opts *pasteOptions, db int) *redis.Client {
+	poolsize := 100
+	maxRetries := 5
+	dialTimeout := 10
+	writeTimeout := 5
+
 	return redis.NewClient(&redis.Options{
 		Addr:         fmt.Sprintf("%s:%d", opts.DBHost, opts.DBPort),
-		PoolSize:     100,
+		PoolSize:     poolsize,
 		Password:     "",
 		Username:     "",
 		DB:           db,
-		MaxRetries:   5,
-		DialTimeout:  10 * time.Second,
-		WriteTimeout: 5 * time.Second,
+		MaxRetries:   maxRetries,
+		DialTimeout:  time.Duration(dialTimeout) * time.Second,
+		WriteTimeout: time.Duration(writeTimeout) * time.Second,
 	})
 }
 
 func initBrokerChannel(connectURL string, logger *slog.Logger) (*amqp.Channel, error) {
 	logger.Debug("Creating amqp connection...")
+
 	rabbitmqcon, err := amqp.Dial(connectURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to rabbitmq: %w", err)
 	}
+
 	logger.Debug("Successfully created amqp connection")
 
 	logger.Debug("Creating amqp channel...")
+
 	ch, err := rabbitmqcon.Channel()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create a rabbitmq channel: %w", err)
 	}
+
 	logger.Debug("Successfully created amqp channel")
 
 	logger.Debug("Declaring amqp exchange...", "exchange_type", "topic", "exchange_name", "apikeysusage")
+
 	err = ch.ExchangeDeclare(
 		"apikeysusage",
 		"topic", // type
@@ -396,6 +421,7 @@ func initBrokerChannel(connectURL string, logger *slog.Logger) (*amqp.Channel, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to create a rabbitmq exchange '%s': %w", "apikeysusage", err)
 	}
+
 	logger.Debug("Successfully declared amqp exchange...")
 
 	return ch, nil
